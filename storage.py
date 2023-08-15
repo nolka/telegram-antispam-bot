@@ -56,7 +56,7 @@ class FileSystem(AbstractStorage):
     def _load_groups_list(self) -> None:
         if os.path.exists(_path(self.storage_dir, self.groups_list_file)):
             with open(_path(self.storage_dir, self.groups_list_file), "r") as f:
-                self.groups_list = [int(x) for x in f.readlines()]
+                self.groups_list = set([int(x) for x in f.readlines()])
 
     def _create_storage_dir(self) -> None:
         if not os.path.exists(self.storage_dir):
