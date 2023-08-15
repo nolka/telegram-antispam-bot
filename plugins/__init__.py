@@ -2,6 +2,7 @@ from abc import abstractmethod, ABC
 from bot import Engine
 import telebot
 
+
 class AbstractMessage(ABC):
 
     @abstractmethod
