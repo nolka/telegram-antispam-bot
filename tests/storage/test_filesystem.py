@@ -40,7 +40,8 @@ class TestFileSystem(unittest.TestCase):
             self.assertFalse(os.path.exists(os.path.sep.join([fs.storage_dir, "groups.txt"])))
 
     def test_constructor_with_groups_list_txt(self):
-        with create_file_system(("1",), write_groups_file=True) as fs:
+        with create_file_system(("1",)) as fs:
+
             self.assertTrue(os.path.exists(fs.storage_dir + os.path.sep + "groups.txt"))
 
             dirs_to_be_created = [
