@@ -2,166 +2,138 @@ import unittest
 import tempfile
 import os
 import codecs
+from contextlib import contextmanager
 
 from storage import FileSystem
 
 
+@contextmanager
+def create_file_system(groups_list=None, write_groups_file=True):
+    sdir = tempfile.mkdtemp()
+    fs = FileSystem(sdir, groups_list)
+    if write_groups_file and groups_list:
+        with open(os.path.sep.join([fs.storage_dir, "groups.txt"]), "w") as f:
+            f.writelines(groups_list)
+
+    yield fs
+
+
 class TestFileSystem(unittest.TestCase):
     def test_constructor_without_groups_list(self):
-        storage_dir = tempfile.mkdtemp()
-
-        _ = FileSystem(storage_dir)
-
-        self.assertEqual([], list(os.scandir(storage_dir)))
+        with create_file_system() as fs:
+            self.assertEqual([], list(os.scandir(fs.storage_dir)))
 
     def test_constructor_with_groups_list(self):
-        storage_dir = tempfile.mkdtemp()
+        with create_file_system(("1",), write_groups_file=False) as fs:
+            dirs_to_be_created = [
+                os.path.sep.join([fs.storage_dir,  "1"]),
+                os.path.sep.join([fs.storage_dir, "1", "confirm_codes"]),
+                os.path.sep.join([fs.storage_dir, "1", "confirmed"]),
+            ]
 
-        _ = FileSystem(storage_dir, ("1",))
+            for d in dirs_to_be_created:
+                self.assertTrue(
+                    os.path.exists(d),
+                    f"no subdirectory created: {d}",
+                )
 
-        dirs_to_be_created = [
-            storage_dir + os.path.sep + "1",
-            storage_dir + os.path.sep + "1" + os.path.sep + "confirm_codes",
-            storage_dir + os.path.sep + "1" + os.path.sep + "confirmed",
-        ]
-
-        for d in dirs_to_be_created:
-            self.assertTrue(
-                os.path.exists(d),
-                f"no subdirectory created: {d}",
-            )
-
-        self.assertFalse(os.path.exists(storage_dir + os.path.sep + "groups.txt"))
+            self.assertFalse(os.path.exists(os.path.sep.join([fs.storage_dir, "groups.txt"])))
 
     def test_constructor_with_groups_list_txt(self):
-        storage_dir = tempfile.mkdtemp()
+        with create_file_system(("1",), write_groups_file=True) as fs:
+            self.assertTrue(os.path.exists(fs.storage_dir + os.path.sep + "groups.txt"))
 
-        with open(os.path.sep.join([storage_dir, "groups.txt"]), "w") as f:
-            f.write("1")
+            dirs_to_be_created = [
+                os.path.sep.join([fs.storage_dir, "1"]),
+                os.path.sep.join([fs.storage_dir, "1", "confirm_codes"]),
+                os.path.sep.join([fs.storage_dir, "1", "confirmed"]),
+            ]
 
-        _ = FileSystem(storage_dir)
-
-        self.assertTrue(os.path.exists(storage_dir + os.path.sep + "groups.txt"))
-
-        dirs_to_be_created = [
-            os.path.sep.join([storage_dir, "1"]),
-            os.path.sep.join([storage_dir, "1", "confirm_codes"]),
-            os.path.sep.join([storage_dir, "1", "confirmed"]),
-        ]
-
-        for d in dirs_to_be_created:
-            self.assertTrue(
-                os.path.exists(d),
-                f"no subdirectory created: {d}",
-            )
+            for d in dirs_to_be_created:
+                self.assertTrue(
+                    os.path.exists(d),
+                    f"no subdirectory created: {d}",
+                )
 
     def test_is_user_confirmed_false(self):
-        storage_dir = tempfile.mkdtemp()
+        with create_file_system() as fs:
+            with open(os.path.sep.join([fs.storage_dir, "groups.txt"]), "w") as f:
+                f.write("1")
 
-        with open(os.path.sep.join([storage_dir, "groups.txt"]), "w") as f:
-            f.write("1")
-
-        fs = FileSystem(storage_dir)
-
-        self.assertFalse(fs.is_user_confirmed(1, 1))
+            self.assertFalse(fs.is_user_confirmed(1, 1))
 
     def test_is_user_confirmed_true(self):
-        storage_dir = tempfile.mkdtemp()
+        with create_file_system(("1",)) as fs:
+            with open(os.path.sep.join([fs.storage_dir, "1", "confirmed", "1"]), "w") as f:
+                pass
 
-        with open(os.path.sep.join([storage_dir, "groups.txt"]), "w") as f:
-            f.write("1")
-
-        fs = FileSystem(storage_dir)
-
-        with open(os.path.sep.join([storage_dir, "1", "confirmed", "1"]), "w") as f:
-            f.write("1")
-
-        self.assertTrue(fs.is_user_confirmed(1, 1))
+            self.assertTrue(fs.is_user_confirmed(1, 1))
 
     def test_set_user_confirmed(self):
-        storage_dir = tempfile.mkdtemp()
+        with create_file_system(("1",)) as fs:
+            with open(os.path.sep.join([fs.storage_dir, "groups.txt"]), "w") as f:
+                f.write("1")
 
-        with open(os.path.sep.join([storage_dir, "groups.txt"]), "w") as f:
-            f.write("1")
+            self.assertFalse(fs.is_user_confirmed(1, 1))
 
-        fs = FileSystem(storage_dir)
+            fs.set_user_confirmed(1, 1)
 
-        self.assertFalse(fs.is_user_confirmed(1, 1))
-
-        fs.set_user_confirmed(1, 1)
-
-        self.assertTrue(fs.is_user_confirmed(1, 1))
+            self.assertTrue(fs.is_user_confirmed(1, 1))
 
     def test_set_user_confirm_code(self):
-        storage_dir = tempfile.mkdtemp()
+        with create_file_system(("1",)) as fs:
+            self.assertFalse(os.path.exists(os.path.sep.join([fs.storage_dir, "1", "confirm_codes", "1"])))
+            self.assertIsNone(fs.set_user_confirm_code(1, 1, "❤️"))
+            self.assertTrue(os.path.exists(os.path.sep.join([fs.storage_dir, "1", "confirm_codes", "1"])))
 
-        with open(os.path.sep.join([storage_dir, "groups.txt"]), "w") as f:
-            f.write("1")
-
-        fs = FileSystem(storage_dir)
-
-        self.assertFalse(os.path.exists(os.path.sep.join([storage_dir, "1", "confirm_codes", "1"])))
-        self.assertIsNone(fs.set_user_confirm_code(1, 1, "❤️"))
-        self.assertTrue(os.path.exists(os.path.sep.join([storage_dir, "1", "confirm_codes", "1"])))
-
-        with codecs.open(os.path.sep.join([storage_dir, "1", "confirm_codes", "1"]), "r", encoding="utf-8") as f:
-            self.assertEqual("❤️", f.read())
+            with codecs.open(os.path.sep.join([fs.storage_dir, "1", "confirm_codes", "1"]), "r", encoding="utf-8") as f:
+                self.assertEqual("❤️", f.read())
 
     def test_get_user_confirm_code(self):
-        storage_dir = tempfile.mkdtemp()
+        with create_file_system(("1",)) as fs:
+            self.assertIsNone(fs.get_user_confirm_code(1, 1))
 
-        with open(os.path.sep.join([storage_dir, "groups.txt"]), "w") as f:
-            f.write("1")
+            with codecs.open(os.path.sep.join([fs.storage_dir, "1", "confirm_codes", "1"]), "w", encoding="utf-8") as f:
+                f.write("❤️")
 
-        fs = FileSystem(storage_dir)
-
-        self.assertIsNone(fs.get_user_confirm_code(1, 1))
-
-        with codecs.open(os.path.sep.join([storage_dir, "1", "confirm_codes", "1"]), "w", encoding="utf-8") as f:
-            f.write("❤️")
-
-        self.assertEqual("❤️", fs.get_user_confirm_code(1, 1))
+            self.assertEqual("❤️", fs.get_user_confirm_code(1, 1))
 
     def test_on_added_to_group_first_time(self):
-        storage_dir = tempfile.mkdtemp()
+        with create_file_system() as fs:
+            fs.on_added_to_group(2)
 
-        fs = FileSystem(storage_dir)
-        fs.on_added_to_group(2)
+            dirs_to_be_created = [
+                os.path.sep.join([fs.storage_dir, "2"]),
+                os.path.sep.join([fs.storage_dir, "2", "confirm_codes"]),
+                os.path.sep.join([fs.storage_dir, "2", "confirmed"]),
+            ]
 
-        dirs_to_be_created = [
-            os.path.sep.join([storage_dir, "2"]),
-            os.path.sep.join([storage_dir, "2", "confirm_codes"]),
-            os.path.sep.join([storage_dir, "2", "confirmed"]),
-        ]
+            for d in dirs_to_be_created:
+                self.assertTrue(
+                    os.path.exists(d),
+                    f"no subdirectory created: {d}",
+                )
 
-        for d in dirs_to_be_created:
-            self.assertTrue(
-                os.path.exists(d),
-                f"no subdirectory created: {d}",
-            )
-
-        with open(os.path.sep.join([storage_dir, "groups.txt"]), "r") as f:
-            self.assertEqual([2], [int(x) for x in f.readlines()])
+            with open(os.path.sep.join([fs.storage_dir, "groups.txt"]), "r") as f:
+                self.assertEqual([2], [int(x) for x in f.readlines()])
 
     def test_on_added_to_group_when_another_exists(self):
-        storage_dir = tempfile.mkdtemp()
+        with create_file_system(("1",)) as fs:
+            fs.on_added_to_group(2)
 
-        fs = FileSystem(storage_dir, ("1",))
-        fs.on_added_to_group(2)
+            dirs_to_be_created = [
+                os.path.sep.join([fs.storage_dir, "2"]),
+                os.path.sep.join([fs.storage_dir, "2", "confirm_codes"]),
+                os.path.sep.join([fs.storage_dir, "2", "confirmed"]),
+            ]
 
-        dirs_to_be_created = [
-            os.path.sep.join([storage_dir, "2"]),
-            os.path.sep.join([storage_dir, "2", "confirm_codes"]),
-            os.path.sep.join([storage_dir, "2", "confirmed"]),
-        ]
+            for d in dirs_to_be_created:
+                self.assertTrue(
+                    os.path.exists(d),
+                    f"no subdirectory created: {d}",
+                )
 
-        for d in dirs_to_be_created:
-            self.assertTrue(
-                os.path.exists(d),
-                f"no subdirectory created: {d}",
-            )
-
-        with open(os.path.sep.join([storage_dir, "groups.txt"]), "r") as f:
-            groups = [int(x) for x in f.readlines()]
-            self.assertIn(1, groups)
-            self.assertIn(2, groups)
+            with open(os.path.sep.join([fs.storage_dir, "groups.txt"]), "r") as f:
+                groups = [int(x) for x in f.readlines()]
+                self.assertIn(1, groups)
+                self.assertIn(2, groups)
