@@ -3,7 +3,7 @@ import os
 import telebot
 from storage import FileSystem
 from plugins.members import CASBan, KickUserNotSolvedCaptha
-from dotenv import load_dotenv, dotenv_values
+from dotenv import load_dotenv
 
 
 def main():
