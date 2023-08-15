@@ -1,6 +1,6 @@
 import telebot
 from queue import Queue
-from threading import Thread, Timer
+from threading import Thread
 from random import choice, shuffle, seed
 import views
 
@@ -103,8 +103,8 @@ class Engine:
         print(f"BOT [{severity}]: {msg}")
 
     def _chat_member_joins(self, message: telebot.types.Message):
-        # Hotfix for handling messages from groups when storage does not have info
-        # about where bot is member. TODO Make pretty solution
+        # Hotfix for handling messages from groups when storage does not have
+        # info about where bot is member. TODO Make pretty solution
         self._storage.on_added_to_group(message.chat.id)
 
         if self._run_member_plugins(message):
@@ -146,8 +146,9 @@ class Engine:
                 if plugin.execute(self, message):
                     return True
             except Exception as e:
+                cls_name = plugin.__class__.__name__
                 self.log(
-                    "Unhandled error in plugin {plugin.__class__.__name__}:\n{e}",
+                    f"Unhandled error in plugin {cls_name}:\n{e}",
                     "error",
                 )
         return False
@@ -167,8 +168,8 @@ class Engine:
         self._storage.on_added_to_group(group_id)
 
     def _chat_message(self, message):
-        # Hotfix for handling messages from groups when storage does not have info
-        # about where bot is member. TODO Make pretty solution
+        # Hotfix for handling messages from groups when storage does not have
+        # info about where bot is member. TODO Make pretty solution
         self._storage.on_added_to_group(message.chat.id)
 
         if not self._storage.is_user_confirmed(
