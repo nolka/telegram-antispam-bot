@@ -8,9 +8,6 @@ from logger import Logger
 from storage import AbstractStorage
 
 
-<<<<<<< Updated upstream
-class _Task:
-=======
 class QueueExit:
     """
     Class used to exid from worker threads
@@ -22,7 +19,6 @@ class EngineTask:
     Class used to execute telegram bot api methods through worker thread using queue
     """
 
->>>>>>> Stashed changes
     def __init__(
         self, method_name: str, kwargs: dict, tries: int = 1, max_tries: int = 3
     ) -> None:
@@ -52,7 +48,6 @@ class Engine:
         self._reply_queue = Queue(25)
 
         self._threads = [
-            Thread(target=self._handle_message_queue, args=(self._msg_queue,)),
             Thread(target=self._send_message_queue, args=(self._reply_queue,)),
         ]
 
@@ -69,12 +64,9 @@ class Engine:
         self._bot.infinity_polling(skip_pending=True)
 
     def stop(self) -> None:
-<<<<<<< Updated upstream
-=======
         for _ in range(len(self._threads)):
             self._reply_queue.put(QueueExit)
 
->>>>>>> Stashed changes
         for t in self._threads:
             t.join()
 
@@ -88,37 +80,30 @@ class Engine:
         self._member_plugins.append(plugin)
 
     def send_message(self, **kwargs) -> None:
-        self._reply_queue.put(_Task("send_message", kwargs))
+        self._reply_queue.put(EngineTask("send_message", kwargs))
 
     def delete_message(self, chat_id, message_id: int) -> None:
         self._reply_queue.put(
-            _Task("delete_message", {"chat_id": chat_id, "message_id": message_id})
+            EngineTask("delete_message", {"chat_id": chat_id, "message_id": message_id})
         )
 
     def kick_chat_member(self, chat_id: int, user_id: int):
         self._reply_queue.put(
-            _Task("kick_chat_member", {"chat_id": chat_id, "user_id": user_id})
+            EngineTask("kick_chat_member", {"chat_id": chat_id, "user_id": user_id})
         )
 
     def ban_user(self, chat_id: int, user_id: int) -> None:
         self._reply_queue.put(
-            _Task("ban_chat_member", {"chat_id": chat_id, "user_id": user_id})
+            EngineTask("ban_chat_member", {"chat_id": chat_id, "user_id": user_id})
         )
-
-    def _handle_message_queue(self, queue):
-        # TODO: Implement messages handling via queue
-        pass
 
     def _send_message_queue(self, queue: Queue):
         while True:
             task = queue.get()
             try:
-<<<<<<< Updated upstream
-=======
                 if task == QueueExit:
                     return
 
->>>>>>> Stashed changes
                 exec_method = getattr(self._bot, task.method_name)
                 self.log(f"Execing method '{task.method_name}'")
                 exec_method(**task.kwargs)

@@ -4,12 +4,8 @@ import telebot
 import signal
 from storage import FileSystem
 from plugins.members import CASBan, KickUserNotSolvedCaptha
-<<<<<<< Updated upstream
-from dotenv import load_dotenv, dotenv_values
-=======
 from dotenv import load_dotenv
 from logger import Logger
->>>>>>> Stashed changes
 
 
 def main():
