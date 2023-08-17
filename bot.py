@@ -1,10 +1,11 @@
-import telebot
 from queue import Queue
+from random import choice, seed, shuffle
 from threading import Thread
-from random import choice, shuffle, seed
+
+import telebot
+
 import views
 from logger import Logger
-
 from storage import AbstractStorage
 
 
@@ -29,6 +30,9 @@ class EngineTask:
 
 
 class Engine:
+    """
+    Represents wrapper for telebot for implement custom logic for event processing
+    """
     emojies = ["❤️", "🙈", "💋", "😭", "😡", "😚"]
 
     def __init__(
@@ -58,41 +62,57 @@ class Engine:
         self._bot.register_callback_query_handler(self._user_selected_answer, func=None)
 
     def start(self) -> None:
-        for t in self._threads:
-            t.start()
+        """
+        Starts bot engine
+        """
+        for thread in self._threads:
+            thread.start()
         self.log("Start polling...")
         self._bot.infinity_polling(skip_pending=True)
 
     def stop(self) -> None:
+        """
+        Stops bot engine
+        """
         for _ in range(len(self._threads)):
             self._reply_queue.put(QueueExit)
 
-        for t in self._threads:
-            t.join()
+        for thread in self._threads:
+            thread.join()
 
         self._bot.stop_bot()
         self.log("Bot stopped")
 
     def is_user_confirmed(self, group_id, user_id: int) -> bool:
+        """Performs check, if user already passed antispam validation"""
         return self._storage.is_user_confirmed(group_id, user_id)
 
     def add_plugin(self, plugin) -> None:
+        """Add user plugin to bot engine"""
         self._member_plugins.append(plugin)
 
     def send_message(self, **kwargs) -> None:
+        """
+        Send message through queue to telegram
+        """
         self._reply_queue.put(EngineTask("send_message", kwargs))
 
     def delete_message(self, chat_id, message_id: int) -> None:
+        """
+        Delete existing message in group via queue
+        """
         self._reply_queue.put(
             EngineTask("delete_message", {"chat_id": chat_id, "message_id": message_id})
         )
 
     def kick_chat_member(self, chat_id: int, user_id: int):
+        """Remove chat member from group without ban"""
         self._reply_queue.put(
             EngineTask("kick_chat_member", {"chat_id": chat_id, "user_id": user_id})
         )
 
     def ban_user(self, chat_id: int, user_id: int) -> None:
+        """Permanently ban user from group"""
         self._reply_queue.put(
             EngineTask("ban_chat_member", {"chat_id": chat_id, "user_id": user_id})
         )
@@ -143,7 +163,7 @@ class Engine:
             confirm_code = self._storage.get_user_confirm_code(
                 message.chat.id, new_member.id
             )
-            if confirm_code is None or not len(confirm_code):
+            if confirm_code is None or not confirm_code:
                 seed()
                 confirm_code = choice(self.emojies)
                 self._storage.set_user_confirm_code(

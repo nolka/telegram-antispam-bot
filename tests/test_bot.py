@@ -1,6 +1,6 @@
 import unittest
-from unittest.mock import Mock
 from contextlib import contextmanager
+from unittest.mock import Mock
 
 from bot import Engine
 
