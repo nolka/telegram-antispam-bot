@@ -14,6 +14,9 @@ _CAS_HOST = "https://api.cas.chat/check"
 
 
 class CASBan(AbstractMessage):
+    """
+    Check if member is already banned by combot service
+    """
     def execute(self, bot: Engine, message: telebot.types.Message) -> None | bool:
         for new_member in message.new_chat_members:
 
@@ -36,6 +39,9 @@ class CASBan(AbstractMessage):
 
 
 class KickUserNotSolvedCaptha(AbstractMessage):
+    """
+    Kick user from group if them is not passed antispam validation
+    """
     def __init__(self, kick_after_sec: int = 180) -> None:
         super().__init__()
         self.kick_after_sec = kick_after_sec

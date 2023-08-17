@@ -22,4 +22,4 @@ jobs:
     - name: Analysing the code with pylint
       run: |
         export PYTHONPATH=$PYTHONPATH:$(pwd)
-        pylint --ignore-paths ./tests $(git ls-files '*.py')
+        pylint --fail-under 7 --ignore-paths ./tests $(git ls-files '*.py')
