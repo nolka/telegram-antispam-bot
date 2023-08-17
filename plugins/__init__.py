@@ -1,6 +1,8 @@
-from abc import abstractmethod, ABC
-from bot import Engine
+from abc import ABC, abstractmethod
+
 import telebot
+
+from bot import Engine
 
 
 class AbstractMessage(ABC):

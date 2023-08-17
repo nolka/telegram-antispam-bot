@@ -1,6 +1,6 @@
 import unittest
-from unittest.mock import Mock
 from contextlib import contextmanager
+from unittest.mock import Mock
 
 from bot import Engine
 
@@ -9,7 +9,8 @@ from bot import Engine
 def create_bot():
     telebot_mock = Mock()
     storage_mock = Mock()
-    bot = Engine("test_bot", telebot_mock, storage_mock)
+    logger = Mock()
+    bot = Engine("test_bot", telebot_mock, storage_mock, logger)
 
     yield bot, telebot_mock, storage_mock
 

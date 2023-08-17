@@ -1,7 +1,7 @@
-import unittest
-import tempfile
-import os
 import codecs
+import os
+import tempfile
+import unittest
 from contextlib import contextmanager
 
 from storage import FileSystem
@@ -65,7 +65,7 @@ class TestFileSystem(unittest.TestCase):
 
     def test_is_user_confirmed_true(self):
         with create_file_system(("1",)) as fs:
-            with open(os.path.sep.join([fs.storage_dir, "1", "confirmed", "1"]), "w") as f:
+            with open(os.path.sep.join([fs.storage_dir, "1", "confirmed", "1"]), "w") as _:
                 pass
 
             self.assertTrue(fs.is_user_confirmed(1, 1))
