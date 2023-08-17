@@ -10,7 +10,8 @@ _cas_host = "https://api.cas.chat/check"
 class CASBan(AbstractMessage):
     def execute(self, bot: Engine, message: telebot.types.Message) -> None | bool:
         for new_member in message.new_chat_members:
-            bot.log(f"Checking CAS ban for user {new_member.id}")
+
+            bot.log(f"Checking CAS ban for user {new_member.id}", module_name="CASBan")
             response = requests.get(_cas_host, params={"user_id": new_member.id})
             if response.status_code != 200:
                 return
@@ -19,14 +20,17 @@ class CASBan(AbstractMessage):
             if not json["ok"]:
                 return
 
-            bot.log(f"CAS ban for {new_member.username}, {new_member.full_name}")
+            bot.log(
+                f"CAS ban for {new_member.username}, {new_member.full_name}",
+                module_name="CASBan",
+            )
             bot.ban_user(message.chat.id, new_member.id)
 
             return True
 
 
 class KickUserNotSolvedCaptha(AbstractMessage):
-    def __init__(self, kick_after_sec: int=180) -> None:
+    def __init__(self, kick_after_sec: int = 180) -> None:
         super().__init__()
         self.kick_after_sec = kick_after_sec
 
@@ -45,5 +49,6 @@ class KickUserNotSolvedCaptha(AbstractMessage):
 
         bot.kick_chat_member(group_id, user_id)
         bot.log(
-            f"User {user_id} was kicked from group {group_id} because not confirmed"
+            f"User {user_id} was kicked from group {group_id} because not confirmed",
+            module_name="KickUserNotSolvedCaptha",
         )

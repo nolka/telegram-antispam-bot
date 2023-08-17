@@ -25,9 +25,6 @@ class TestBot(unittest.TestCase):
 
     def test_methods(self):
         with create_bot() as (bot, telebot_mock, storage_mock):
-            telebot_mock = Mock()
-            storage_mock = Mock()
-            bot = Engine("test_bot", telebot_mock, storage_mock)
             bot.start()
 
             bot.is_user_confirmed(1, 1)
