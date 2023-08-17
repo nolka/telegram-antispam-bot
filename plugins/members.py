@@ -11,9 +11,7 @@ class CASBan(AbstractMessage):
     def execute(self, bot: Engine, message: telebot.types.Message) -> None | bool:
         for new_member in message.new_chat_members:
             bot.log(f"Checking CAS ban for user {new_member.id}")
-            response = requests.get(
-                _cas_host, params={"user_id": new_member.id}
-            )
+            response = requests.get(_cas_host, params={"user_id": new_member.id})
             if response.status_code != 200:
                 return
 
@@ -21,8 +19,7 @@ class CASBan(AbstractMessage):
             if not json["ok"]:
                 return
 
-            bot.log(
-                f"CAS ban for {new_member.username}, {new_member.full_name}")
+            bot.log(f"CAS ban for {new_member.username}, {new_member.full_name}")
             bot.ban_user(message.chat.id, new_member.id)
 
             return True
@@ -35,13 +32,18 @@ class KickUserNotSolvedCaptha(AbstractMessage):
 
     def execute(self, bot: Engine, message: telebot.types.Message) -> None | bool:
         for new_member in message.new_chat_members:
-            timer = Timer(self.kick_after_sec, self.kick_inactive, args=(bot, message.chat.id, new_member.id))
+            timer = Timer(
+                self.kick_after_sec,
+                self.kick_inactive,
+                args=(bot, message.chat.id, new_member.id),
+            )
             timer.start()
-    
+
     def kick_inactive(self, bot: Engine, group_id: int, user_id: int) -> None:
         if bot.is_user_confirmed(group_id, user_id):
-                return
-        
+            return
+
         bot.kick_chat_member(group_id, user_id)
-        bot.log(f"User {user_id} was kicked from group {group_id} because not confirmed")
-        
+        bot.log(
+            f"User {user_id} was kicked from group {group_id} because not confirmed"
+        )
