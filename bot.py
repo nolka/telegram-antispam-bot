@@ -3,11 +3,26 @@ from queue import Queue
 from threading import Thread
 from random import choice, shuffle, seed
 import views
+from logger import Logger
 
 from storage import AbstractStorage
 
 
+<<<<<<< Updated upstream
 class _Task:
+=======
+class QueueExit:
+    """
+    Class used to exid from worker threads
+    """
+
+
+class EngineTask:
+    """
+    Class used to execute telegram bot api methods through worker thread using queue
+    """
+
+>>>>>>> Stashed changes
     def __init__(
         self, method_name: str, kwargs: dict, tries: int = 1, max_tries: int = 3
     ) -> None:
@@ -21,11 +36,16 @@ class Engine:
     emojies = ["❤️", "🙈", "💋", "😭", "😡", "😚"]
 
     def __init__(
-        self, bot_username: str, bot: telebot.TeleBot, storage: AbstractStorage
+        self,
+        bot_username: str,
+        bot: telebot.TeleBot,
+        storage: AbstractStorage,
+        logger: Logger,
     ) -> None:
         self.bot_username = bot_username
         self._bot = bot
         self._storage = storage
+        self._logger = logger
 
         self._member_plugins = []
         self._msg_queue = Queue()
@@ -45,14 +65,21 @@ class Engine:
     def start(self) -> None:
         for t in self._threads:
             t.start()
-
+        self.log("Start polling...")
         self._bot.infinity_polling(skip_pending=True)
 
     def stop(self) -> None:
+<<<<<<< Updated upstream
+=======
+        for _ in range(len(self._threads)):
+            self._reply_queue.put(QueueExit)
+
+>>>>>>> Stashed changes
         for t in self._threads:
             t.join()
 
         self._bot.stop_bot()
+        self.log("Bot stopped")
 
     def is_user_confirmed(self, group_id, user_id: int) -> bool:
         return self._storage.is_user_confirmed(group_id, user_id)
@@ -86,6 +113,12 @@ class Engine:
         while True:
             task = queue.get()
             try:
+<<<<<<< Updated upstream
+=======
+                if task == QueueExit:
+                    return
+
+>>>>>>> Stashed changes
                 exec_method = getattr(self._bot, task.method_name)
                 self.log(f"Execing method '{task.method_name}'")
                 exec_method(**task.kwargs)
@@ -99,8 +132,12 @@ class Engine:
             finally:
                 queue.task_done()
 
-    def log(self, msg: str, severity: str = "info") -> None:
-        print(f"BOT [{severity}]: {msg}")
+    def log(self, msg: str, severity: str = "info", module_name: str = "") -> None:
+        if severity == "error":
+            self._logger.error(msg, module_name)
+            return
+
+        self._logger.info(msg, module_name)
 
     def _chat_member_joins(self, message: telebot.types.Message):
         # Hotfix for handling messages from groups when storage does not have
