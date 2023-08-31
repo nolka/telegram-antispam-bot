@@ -7,6 +7,7 @@ import sys
 
 
 class Logger:
+    """ Simple logger class """
     def __init__(self, logger_name: str, log_level: int = logging.INFO) -> None:
         log = logging.getLogger(logger_name)
         log.setLevel(log_level)
@@ -21,7 +22,9 @@ class Logger:
         self._log = log
 
     def info(self, message: str, module_name: str = "") -> None:
+        """ Logs informational message """
         self._log.info(f"{module_name}: {message}")
 
     def error(self, message: str, module_name: str = "") -> None:
+        """ Logs error message """
         self._log.error(f"{module_name}: {message}")
