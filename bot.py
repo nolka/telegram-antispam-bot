@@ -1,12 +1,15 @@
 from queue import Queue
-from random import choice, seed, shuffle
 from threading import Thread
+from collections import defaultdict
+import traceback
 
 import telebot
+from telebot.apihelper import ApiException
 
-import views
+from entities.delayed_response import DelayedResponseQueue
 from logger import Logger
 from storage import AbstractStorage
+import plugins
 
 
 class QueueExit:
@@ -21,19 +24,24 @@ class EngineTask:
     """
 
     def __init__(
-        self, method_name: str, kwargs: dict, tries: int = 1, max_tries: int = 3
+        self,
+        method_name: str,
+        kwargs: dict,
+        tries: int = 1,
+        max_tries: int = 3,
+        response_queue: DelayedResponseQueue = None,
     ) -> None:
-        self.method_name = method_name
-        self.kwargs = kwargs
-        self.tries = tries
-        self.max_tries = max_tries
+        self.method_name: str = method_name
+        self.kwargs: dict = kwargs
+        self.tries: int = tries
+        self.max_tries: int = max_tries
+        self.response_queue: DelayedResponseQueue = response_queue
 
 
 class Engine:
     """
     Represents wrapper for telebot for implement custom logic for event processing
     """
-    emojies = ["❤️", "🙈", "💋", "😭", "😡", "😚"]
 
     def __init__(
         self,
@@ -47,7 +55,7 @@ class Engine:
         self._storage = storage
         self._logger = logger
 
-        self._member_plugins = []
+        self._plugins = defaultdict(list)
         self._msg_queue = Queue()
         self._reply_queue = Queue(25)
 
@@ -58,7 +66,7 @@ class Engine:
         self._bot.register_message_handler(
             self._chat_member_joins, content_types=["new_chat_members"]
         )
-        self._bot.register_message_handler(self._chat_message, content_types=["text"])
+        self._bot.register_message_handler(self.on_chat_message, content_types=["text"])
         self._bot.register_callback_query_handler(self._user_selected_answer, func=None)
 
     def start(self) -> None:
@@ -83,19 +91,29 @@ class Engine:
         self._bot.stop_bot()
         self.log("Bot stopped")
 
+    @property
+    def storage(self) -> AbstractStorage:
+        """ Storage getter """
+        return self._storage
+
     def is_user_confirmed(self, group_id, user_id: int) -> bool:
         """Performs check, if user already passed antispam validation"""
         return self._storage.is_user_confirmed(group_id, user_id)
 
     def add_plugin(self, plugin) -> None:
         """Add user plugin to bot engine"""
-        self._member_plugins.append(plugin)
 
-    def send_message(self, **kwargs) -> None:
+        self._plugins[plugin.plugin_type].append(plugin)
+
+        self.log(f"Registered plugin: {plugin.__class__.__name__}")
+
+    def send_message(self, reply_to: DelayedResponseQueue = None, **kwargs) -> Queue:
         """
         Send message through queue to telegram
         """
-        self._reply_queue.put(EngineTask("send_message", kwargs))
+        task = EngineTask("send_message", kwargs, response_queue=reply_to)
+        self._reply_queue.put(task)
+        return task.response_queue
 
     def delete_message(self, chat_id, message_id: int) -> None:
         """
@@ -119,16 +137,20 @@ class Engine:
 
     def _send_message_queue(self, queue: Queue):
         while True:
-            task = queue.get()
+            task: EngineTask = queue.get()
             try:
                 if task == QueueExit:
                     return
 
                 exec_method = getattr(self._bot, task.method_name)
                 self.log(f"Execing method '{task.method_name}'")
-                exec_method(**task.kwargs)
-            except Exception as e:
-                self.log(e, "error")
+                response = exec_method(**task.kwargs)
+                if task.response_queue:
+                    task.response_queue.put(response)
+            except ApiException as exc:
+                self.log(exc, severity="error")
+            except Exception as exc:
+                self.log(exc, "error")
                 if task.tries <= task.max_tries:
                     task.tries += 1
                     queue.put(task)
@@ -138,81 +160,45 @@ class Engine:
                 queue.task_done()
 
     def log(self, msg: str, severity: str = "info", module_name: str = "") -> None:
-        if severity == "error":
-            self._logger.error(msg, module_name)
-            return
-
-        self._logger.info(msg, module_name)
+        """ Writes log message """
+        match severity:
+            case "error":
+                self._logger.error(msg, module_name)
+            case _:
+                self._logger.info(msg, module_name)
 
     def _chat_member_joins(self, message: telebot.types.Message):
         # Hotfix for handling messages from groups when storage does not have
         # info about where bot is member. TODO Make pretty solution
         self._storage.on_added_to_group(message.chat.id)
 
-        if self._run_member_plugins(message):
+        if self._run_plugins(plugins.PLUGIN_NEW_CHAT_MEMBER, message):
             return
 
-        for new_member in message.new_chat_members:
-            if new_member.username == self.bot_username:
-                self._bot_added_to_group(message.chat.id)
-                continue
-
-            if self._storage.is_user_confirmed(message.chat.id, new_member.id):
-                continue
-
-            confirm_code = self._storage.get_user_confirm_code(
-                message.chat.id, new_member.id
-            )
-            if confirm_code is None or not confirm_code:
-                seed()
-                confirm_code = choice(self.emojies)
-                self._storage.set_user_confirm_code(
-                    message.chat.id, new_member.id, confirm_code
-                )
-
-            self.send_message(
-                chat_id=message.chat.id,
-                text=views.render_new_member_joined_message(
-                    {
-                        "new_member": new_member,
-                        "confirm_code": confirm_code,
-                    }
-                ),
-                parse_mode="markdownV2",
-                reply_markup=self._get_emoji_keyboard(),
-            )
-
-    def _run_member_plugins(self, message: telebot.types.Message) -> bool:
-        for plugin in self._member_plugins:
+    def _run_plugins(self, plugin_type: int, message: telebot.types.Message) -> bool:
+        for plugin in self._plugins[plugin_type]:
             try:
                 if plugin.execute(self, message):
                     return True
-            except Exception as e:
+            except Exception as exc:
                 cls_name = plugin.__class__.__name__
                 self.log(
-                    f"Unhandled error in plugin {cls_name}:\n{e}",
+                    f"Unhandled error in plugin {cls_name}:\n{exc}\n{traceback.format_exc()}",
                     "error",
                 )
         return False
 
-    def _get_emoji_keyboard(self) -> telebot.types.InlineKeyboardMarkup:
-        shuffle(self.emojies)
-        return telebot.types.InlineKeyboardMarkup(
-            [
-                [
-                    telebot.types.InlineKeyboardButton(x, callback_data=x)
-                    for x in self.emojies
-                ]
-            ]
-        )
-
-    def _bot_added_to_group(self, group_id: int):
+    def on_bot_added_to_group(self, group_id: int):
+        """ Fired when bot added to new group"""
         self._storage.on_added_to_group(group_id)
 
-    def _chat_message(self, message):
+    def on_chat_message(self, message):
         # Hotfix for handling messages from groups when storage does not have
         # info about where bot is member. TODO Make pretty solution
         self._storage.on_added_to_group(message.chat.id)
+
+        if self._run_plugins(plugins.PLUGIN_NEW_CHAT_MESSAGE, message):
+            return
 
         if not self._storage.is_user_confirmed(
             message.chat.id, message.from_user.id

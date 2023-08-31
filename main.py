@@ -7,7 +7,8 @@ from dotenv import load_dotenv
 
 from bot import Engine
 from logger import Logger
-from plugins.members import CASBan, KickUserNotSolvedCaptha
+from plugins.members import CASBan, AntispamVerification
+from plugins.chat_message import TestPlugin
 from storage import FileSystem
 
 
@@ -32,10 +33,11 @@ def main():
     engine = Engine(os.getenv("TELEGRAM_BOT_USERNAME"), bot, storage, logger)
     engine.add_plugin(CASBan())
     engine.add_plugin(
-        KickUserNotSolvedCaptha(
+        AntispamVerification(
             int(os.getenv("PLUGIN_KICK_NOT_CONFIRMED_USER_AFTER", "180"))
         )
     )
+    engine.add_plugin(TestPlugin())
     engine.start()
 
 
