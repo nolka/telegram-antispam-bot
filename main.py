@@ -17,17 +17,8 @@ def main():
     Main entrypoint
     """
 
-    def handle_ctrlc(signum, frame):
-        """
-        Function for handling Ctrl+C keys pressed
-        """
-        print("\n*** Ctrl-c was pressed. Stopping bot... ")
-        engine.stop()
-        sys.exit(0)
-
     load_dotenv()
-    signal.signal(signal.SIGINT, handle_ctrlc)
-    storage = FileSystem(os.path.join(os.getcwd(), "storage"))
+    storage = FileSystem(os.path.join(os.path.dirname(os.path.abspath(sys.argv[0])), "storage"))
     bot = telebot.TeleBot(os.getenv("TELEGRAM_BOT_TOKEN"))
     logger = Logger("BOT")
     engine = Engine(os.getenv("TELEGRAM_BOT_USERNAME"), bot, storage, logger)
@@ -38,6 +29,18 @@ def main():
         )
     )
     engine.add_plugin(TestPlugin())
+
+    def handle_ctrlc(signum, frame):
+        """
+        Function for handling Ctrl+C keys pressed
+        """
+        print("\n*** Ctrl-c was pressed. Stopping bot... ")
+        engine.stop()
+        sys.exit(0)
+
+    signal.signal(signal.SIGINT, handle_ctrlc)
+    signal.signal(signal.SIGTERM, handle_ctrlc)
+
     engine.start()
 
 

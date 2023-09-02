@@ -1,0 +1,14 @@
+version: '3.3'
+
+services:
+  bot-app:
+    image: bot-app:latest
+    build:
+      context: .
+    environment:
+      - TELEGRAM_BOT_USERNAME=$TELEGRAM_BOT_USERNAME
+      - TELEGRAM_BOT_TOKEN=$TELEGRAM_BOT_TOKEN
+      - PLUGIN_KICK_NOT_CONFIRMED_USER_AFTER=$PLUGIN_KICK_NOT_CONFIRMED_USER_AFTER
+    volumes:
+      - ./storage:/app/storage
+    working_dir: /app

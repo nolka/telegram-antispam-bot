@@ -21,5 +21,6 @@ jobs:
         pip install -r requirements.txt
     - name: Analysing the code with pylint
       run: |
-        export PYTHONPATH=$PYTHONPATH:$(pwd)
-        pylint --fail-under 7 --ignore-paths ./tests $(git ls-files '*.py')
+        export BOT_DIR=$(pwd)
+        export PYTHONPATH=$PYTHONPATH:$BOT_DIR
+        pylint --fail-under 7 --ignore-paths $BOT_DIR/tests $(git ls-files '*.py')
