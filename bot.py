@@ -38,6 +38,7 @@ class EngineTask:
         self.response_queue: DelayedResponseQueue = response_queue
 
 
+
 class Engine:
     """
     Represents wrapper for telebot for implement custom logic for event processing
@@ -159,13 +160,13 @@ class Engine:
             finally:
                 queue.task_done()
 
-    def log(self, msg: str, severity: str = "info", module_name: str = "") -> None:
+    def log(self, msg: str, severity: str = "info") -> None:
         """ Writes log message """
         match severity:
             case "error":
-                self._logger.error(msg, module_name)
+                self._logger.error(msg)
             case _:
-                self._logger.info(msg, module_name)
+                self._logger.info(msg)
 
     def _chat_member_joins(self, message: telebot.types.Message):
         # Hotfix for handling messages from groups when storage does not have

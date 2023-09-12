@@ -15,16 +15,16 @@ class Logger:
         handler = logging.StreamHandler(sys.stdout)
 
         formatter = logging.Formatter(
-            "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+            "%(asctime)s - [%(levelname)s] %(name)s: %(message)s"
         )
         handler.setFormatter(formatter)
         log.addHandler(handler)
         self._log = log
 
-    def info(self, message: str, module_name: str = "") -> None:
+    def info(self, message: str) -> None:
         """ Logs informational message """
-        self._log.info(f"{module_name}: {message}")
+        self._log.info(message)
 
-    def error(self, message: str, module_name: str = "") -> None:
+    def error(self, message: str) -> None:
         """ Logs error message """
-        self._log.error(f"{module_name}: {message}")
+        self._log.error(message)

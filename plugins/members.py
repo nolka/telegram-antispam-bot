@@ -28,7 +28,7 @@ class CASBan(MemberPlugin):
 
     def execute(self, engine: bot.Engine, message: telebot.types.Message) -> None | bool:
         for new_member in message.new_chat_members:
-            engine.log(f"Checking CAS ban for user {new_member.id} in group {message.chat.id}", module_name="CASBan")
+            self._logger.info(f"Checking CAS ban for user {new_member.id} in group {message.chat.id}")
             response = requests.get(_CAS_HOST, params={"user_id": new_member.id})
             if response.status_code != 200:
                 return None
@@ -37,7 +37,7 @@ class CASBan(MemberPlugin):
             if not json["ok"]:
                 return None
 
-            engine.log(
+            self._logger.info(
                 f"CAS ban for {new_member.username}, {new_member.full_name}",
                 module_name="CASBan",
             )
@@ -54,8 +54,8 @@ class AntispamVerification(MemberPlugin):
 
     emojies = ["❤️", "🙈", "💋", "😭", "😡", "😚"]
 
-    def __init__(self, kick_after_sec: int = 180) -> None:
-        super().__init__()
+    def __init__(self, logger, kick_after_sec: int = 180) -> None:
+        super().__init__(logger)
         self.kick_after_sec = kick_after_sec
 
     def execute(self, engine: bot.Engine, message: telebot.types.Message) -> None | bool:
@@ -115,8 +115,5 @@ class AntispamVerification(MemberPlugin):
             return
 
         engine.kick_chat_member(group_id, user_id)
-        engine.log(
-            f"User {user_id} was kicked from group {group_id} because not confirmed",
-            module_name="KickUserNotSolvedCaptha",
-        )
+        self._logger.info(f"User {user_id} was kicked from group {group_id} because not confirmed")
         engine.delete_message(group_id, captha_msg_id)
