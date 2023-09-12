@@ -22,13 +22,14 @@ def main():
     bot = telebot.TeleBot(os.getenv("TELEGRAM_BOT_TOKEN"))
     logger = Logger("BOT")
     engine = Engine(os.getenv("TELEGRAM_BOT_USERNAME"), bot, storage, logger)
-    engine.add_plugin(CASBan())
+    engine.add_plugin(CASBan(Logger("CasBan")))
     engine.add_plugin(
         AntispamVerification(
+        Logger("AntispamVerification"),
             int(os.getenv("PLUGIN_KICK_NOT_CONFIRMED_USER_AFTER", "180"))
         )
     )
-    engine.add_plugin(TestPlugin())
+    engine.add_plugin(TestPlugin(Logger("TestPlugin")))
 
     def handle_ctrlc(signum, frame):
         """

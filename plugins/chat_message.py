@@ -21,4 +21,4 @@ class TestPlugin(ChatMessagePlugin):
     def execute(
         self, engine: bot.Engine, message: telebot.types.Message
     ) -> None | bool:
-        engine.log("Received message", module_name=self.__class__.__name__)
+        self._logger.info("Received message")
