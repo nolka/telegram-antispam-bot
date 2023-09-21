@@ -6,10 +6,7 @@ import re
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
-env = Environment(
-    loader=FileSystemLoader("templates"),
-    autoescape=select_autoescape()
-)
+env = Environment(loader=FileSystemLoader("templates"), autoescape=select_autoescape())
 
 
 def render_new_member_joined_message(params: dict) -> str:

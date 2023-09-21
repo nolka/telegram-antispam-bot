@@ -10,7 +10,8 @@ def create_bot():
     telebot_mock = Mock()
     storage_mock = Mock()
     logger = Mock()
-    bot = Engine("test_bot", telebot_mock, storage_mock, logger)
+    metrics = Mock()
+    bot = Engine("test_bot", telebot_mock, metrics, storage_mock, logger)
 
     yield bot, telebot_mock, storage_mock
 
