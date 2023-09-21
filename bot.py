@@ -10,6 +10,7 @@ from entities.delayed_response import DelayedResponseQueue
 from logger import Logger
 from storage import AbstractStorage
 import plugins
+from metrics import BotMetrics
 
 
 class QueueExit:
@@ -38,7 +39,6 @@ class EngineTask:
         self.response_queue: DelayedResponseQueue = response_queue
 
 
-
 class Engine:
     """
     Represents wrapper for telebot for implement custom logic for event processing
@@ -48,11 +48,13 @@ class Engine:
         self,
         bot_username: str,
         bot: telebot.TeleBot,
+        metrics: BotMetrics,
         storage: AbstractStorage,
         logger: Logger,
     ) -> None:
         self.bot_username = bot_username
         self._bot = bot
+        self._metrics = metrics
         self._storage = storage
         self._logger = logger
 
@@ -94,7 +96,7 @@ class Engine:
 
     @property
     def storage(self) -> AbstractStorage:
-        """ Storage getter """
+        """Storage getter"""
         return self._storage
 
     def is_user_confirmed(self, group_id, user_id: int) -> bool:
@@ -148,8 +150,13 @@ class Engine:
                 response = exec_method(**task.kwargs)
                 if task.response_queue:
                     task.response_queue.put(response)
+                    
+                self._metrics.commands_executed_total(
+                    task.method_name, getattr(task["kwargs"], "chat_id", "")
+                )
             except ApiException as exc:
                 self.log(exc, severity="error")
+
             except Exception as exc:
                 self.log(exc, "error")
                 if task.tries <= task.max_tries:
@@ -157,11 +164,12 @@ class Engine:
                     queue.put(task)
                 else:
                     self.log("Task dropped because max retry limit exceeded")
+
             finally:
                 queue.task_done()
 
     def log(self, msg: str, severity: str = "info") -> None:
-        """ Writes log message """
+        """Writes log message"""
         match severity:
             case "error":
                 self._logger.error(msg)
@@ -172,6 +180,8 @@ class Engine:
         # Hotfix for handling messages from groups when storage does not have
         # info about where bot is member. TODO Make pretty solution
         self._storage.on_added_to_group(message.chat.id)
+
+        self._metrics.inc_members_joined_total(message.chat.id, message.from_user.id)
 
         if self._run_plugins(plugins.PLUGIN_NEW_CHAT_MEMBER, message):
             return
@@ -187,16 +197,19 @@ class Engine:
                     f"Unhandled error in plugin {cls_name}:\n{exc}\n{traceback.format_exc()}",
                     "error",
                 )
+                self._metrics.inc_plugin_errors_total(cls_name, exc.__class__.__name__)
         return False
 
     def on_bot_added_to_group(self, group_id: int):
-        """ Fired when bot added to new group"""
+        """Fired when bot added to new group"""
         self._storage.on_added_to_group(group_id)
 
     def on_chat_message(self, message):
         # Hotfix for handling messages from groups when storage does not have
         # info about where bot is member. TODO Make pretty solution
         self._storage.on_added_to_group(message.chat.id)
+
+        self._metrics.inc_messages_received_total(message.chat.id, message.from_user.id)
 
         if self._run_plugins(plugins.PLUGIN_NEW_CHAT_MESSAGE, message):
             return
@@ -221,3 +234,4 @@ class Engine:
         ):
             self._storage.set_user_confirmed(chat_id, user_id)
             self.delete_message(chat_id=chat_id, message_id=callback.message.id)
+            self._metrics.inc_captha_solved_total(callback.data)
