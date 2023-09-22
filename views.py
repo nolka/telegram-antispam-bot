@@ -5,6 +5,7 @@ Contains function for rendering certain messages to send to groups
 import re
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
+# Не может импортировать jinja2
 
 env = Environment(
     loader=FileSystemLoader("templates"),

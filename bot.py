@@ -1,10 +1,13 @@
+'''Тут непосредственно представлена логика работы бота'''
+
 from queue import Queue
 from threading import Thread
 from collections import defaultdict
 import traceback
 
-import telebot
+import telebot  # Линтер ругается, что не может импортировать tetlebot
 from telebot.apihelper import ApiException
+# Линтер ругается, что не может импортировать telebot.apihelper
 
 from entities.delayed_response import DelayedResponseQueue
 from logger import Logger
@@ -13,15 +16,14 @@ import plugins
 
 
 class QueueExit:
-    """
-    Class used to exid from worker threads
-    """
+    """Class used to exid from worker threads."""
+    #  Здесь и далее Docstring оформил так, как требуют с нас.
+    #  Только мне не понятно, для чего здесь предусмотрен этот класс,
+    #  т.е. что он будет делать и зачем.
 
 
 class EngineTask:
-    """
-    Class used to execute telegram bot api methods through worker thread using queue
-    """
+    """Class used to execute telegram bot api methods through worker thread using queue."""
 
     def __init__(
         self,
@@ -38,11 +40,8 @@ class EngineTask:
         self.response_queue: DelayedResponseQueue = response_queue
 
 
-
 class Engine:
-    """
-    Represents wrapper for telebot for implement custom logic for event processing
-    """
+    """Represents wrapper for telebot for implement custom logic for event processing."""
 
     def __init__(
         self,
@@ -71,18 +70,14 @@ class Engine:
         self._bot.register_callback_query_handler(self._user_selected_answer, func=None)
 
     def start(self) -> None:
-        """
-        Starts bot engine
-        """
+        """Starts bot engine."""
         for thread in self._threads:
             thread.start()
         self.log("Start polling...")
         self._bot.infinity_polling(skip_pending=True)
 
     def stop(self) -> None:
-        """
-        Stops bot engine
-        """
+        """Stops bot engine."""
         for _ in range(len(self._threads)):
             self._reply_queue.put(QueueExit)
 
@@ -94,44 +89,40 @@ class Engine:
 
     @property
     def storage(self) -> AbstractStorage:
-        """ Storage getter """
+        """Storage getter."""
         return self._storage
 
     def is_user_confirmed(self, group_id, user_id: int) -> bool:
-        """Performs check, if user already passed antispam validation"""
+        """Performs check, if user already passed antispam validation."""
         return self._storage.is_user_confirmed(group_id, user_id)
 
     def add_plugin(self, plugin) -> None:
-        """Add user plugin to bot engine"""
+        """Add user plugin to bot engine."""
 
         self._plugins[plugin.plugin_type].append(plugin)
 
         self.log(f"Registered plugin: {plugin.__class__.__name__}")
 
     def send_message(self, reply_to: DelayedResponseQueue = None, **kwargs) -> Queue:
-        """
-        Send message through queue to telegram
-        """
+        """Send message through queue to telegram."""
         task = EngineTask("send_message", kwargs, response_queue=reply_to)
         self._reply_queue.put(task)
         return task.response_queue
 
     def delete_message(self, chat_id, message_id: int) -> None:
-        """
-        Delete existing message in group via queue
-        """
+        """Delete existing message in group via queue."""
         self._reply_queue.put(
             EngineTask("delete_message", {"chat_id": chat_id, "message_id": message_id})
         )
 
     def kick_chat_member(self, chat_id: int, user_id: int):
-        """Remove chat member from group without ban"""
+        """Remove chat member from group without ban."""
         self._reply_queue.put(
             EngineTask("kick_chat_member", {"chat_id": chat_id, "user_id": user_id})
         )
 
     def ban_user(self, chat_id: int, user_id: int) -> None:
-        """Permanently ban user from group"""
+        """Permanently ban user from group."""
         self._reply_queue.put(
             EngineTask("ban_chat_member", {"chat_id": chat_id, "user_id": user_id})
         )
@@ -151,6 +142,8 @@ class Engine:
             except ApiException as exc:
                 self.log(exc, severity="error")
             except Exception as exc:
+                # Перехват слишком общего исключения, я так понимаю,
+                # надо конкретизировать исключение
                 self.log(exc, "error")
                 if task.tries <= task.max_tries:
                     task.tries += 1
@@ -161,7 +154,7 @@ class Engine:
                 queue.task_done()
 
     def log(self, msg: str, severity: str = "info") -> None:
-        """ Writes log message """
+        """Writes log message."""
         match severity:
             case "error":
                 self._logger.error(msg)
@@ -190,10 +183,10 @@ class Engine:
         return False
 
     def on_bot_added_to_group(self, group_id: int):
-        """ Fired when bot added to new group"""
+        """Fired when bot added to new group."""
         self._storage.on_added_to_group(group_id)
 
-    def on_chat_message(self, message):
+    def on_chat_message(self, message):  # Тут просто нужно добавить Docstring
         # Hotfix for handling messages from groups when storage does not have
         # info about where bot is member. TODO Make pretty solution
         self._storage.on_added_to_group(message.chat.id)

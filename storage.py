@@ -1,6 +1,6 @@
 """
-Data storage layer. Contains classes for managing bot data, which be used to perform antispam 
-operations
+Data storage layer. Contains classes for managing bot data,
+which be used to perform antispam operations
 """
 
 import os
@@ -16,6 +16,7 @@ class AbstractStorage(ABC):
 
     @abstractmethod
     def is_user_confirmed(self, group_id: int, user_id: int) -> bool:
+        # Здесь и далее линтер ругается на отсутвие Docstring
         pass
 
     @abstractmethod
