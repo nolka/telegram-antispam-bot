@@ -150,15 +150,20 @@ class Engine:
                 response = exec_method(**task.kwargs)
                 if task.response_queue:
                     task.response_queue.put(response)
-                    
-                self._metrics.commands_executed_total(
-                    task.method_name, getattr(task["kwargs"], "chat_id", "")
+
+                self._metrics.inc_commands_executed_total(
+                    task.method_name, getattr(task.kwargs, "chat_id", "")
                 )
             except ApiException as exc:
-                self.log(exc, severity="error")
+                self.log(
+                    f"Unhandled ApiException: {exc}\n{traceback.format_exc()}",
+                    severity="error",
+                )
 
             except Exception as exc:
-                self.log(exc, "error")
+                self.log(
+                    f"Unhandled Exception: {exc}\n{traceback.format_exc()}", "error"
+                )
                 if task.tries <= task.max_tries:
                     task.tries += 1
                     queue.put(task)

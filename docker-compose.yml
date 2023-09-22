@@ -2,13 +2,17 @@ version: '3.3'
 
 services:
   bot-app:
-    image: bot-app:latest
+    image: $IMAGE_NAME:$IMAGE_VERSION
     build:
       context: .
     environment:
       - TELEGRAM_BOT_USERNAME=$TELEGRAM_BOT_USERNAME
       - TELEGRAM_BOT_TOKEN=$TELEGRAM_BOT_TOKEN
       - PLUGIN_KICK_NOT_CONFIRMED_USER_AFTER=$PLUGIN_KICK_NOT_CONFIRMED_USER_AFTER
+      - METRICS_PORT=$METRICS_PORT
+      - METRICS_HOST=$METRICS_HOST
+    ports:
+      - $METRICS_MAP_HOST:$METRICS_PORT:$METRICS_PORT
     volumes:
       - ./storage:/app/storage
     working_dir: /app
