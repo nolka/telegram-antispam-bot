@@ -9,7 +9,7 @@ import requests
 import telebot
 
 import bot
-import views
+from views import messages
 from plugins import AbstractPlugin, PLUGIN_NEW_CHAT_MEMBER
 from entities.delayed_response import DelayedResponseQueue
 
@@ -80,7 +80,7 @@ class AntispamVerification(MemberPlugin):
             response = engine.send_message(
                 reply_to=DelayedResponseQueue(),
                 chat_id=message.chat.id,
-                text=views.render_new_member_joined_message(
+                text=messages.render_new_member_joined_message(
                     {
                         "new_member": new_member,
                         "confirm_code": confirm_code,
