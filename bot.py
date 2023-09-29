@@ -79,7 +79,7 @@ class Engine:
         for thread in self._threads:
             thread.start()
         self.log("Start polling...")
-        self._bot.infinity_polling(skip_pending=True)
+        self._bot.infinity_polling()
 
     def stop(self) -> None:
         """
@@ -152,7 +152,7 @@ class Engine:
                     task.response_queue.put(response)
 
                 self._metrics.inc_commands_executed_total(
-                    task.method_name, getattr(task.kwargs, "chat_id", "")
+                    task.method_name, task.kwargs.get("chat_id", 0)
                 )
             except ApiException as exc:
                 self.log(
