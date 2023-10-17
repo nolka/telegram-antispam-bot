@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 
 from bot import Engine
 from logger import Logger
-from plugins.members import CASBan, AntispamVerification
+from plugins.members import CASBan, AntispamVerification, RemoveMemberJoinedMessage
 from plugins.chat_message import TestPlugin
 from storage import FileSystem
 from metrics import start_metrics_server, BotMetrics
@@ -39,6 +39,7 @@ def main():
             int(os.getenv("PLUGIN_KICK_NOT_CONFIRMED_USER_AFTER", "180")),
         )
     )
+    engine.add_plugin(RemoveMemberJoinedMessage(Logger("RemoveMemberJoinedMessage")))
     engine.add_plugin(TestPlugin(Logger("TestPlugin")))
 
     def handle_ctrlc(signum, frame):
