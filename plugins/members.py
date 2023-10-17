@@ -28,7 +28,8 @@ class CASBan(MemberPlugin):
 
     def execute(self, engine: bot.Engine, message: telebot.types.Message) -> None | bool:
         for new_member in message.new_chat_members:
-            self._logger.info(f"Checking CAS ban for user {new_member.id} in group {message.chat.id}")
+            self._logger.info(
+                f"Checking CAS ban for user {new_member.id} in group {message.chat.id}")
             response = requests.get(_CAS_HOST, params={"user_id": new_member.id})
             if response.status_code != 200:
                 return None
@@ -117,3 +118,10 @@ class AntispamVerification(MemberPlugin):
         engine.kick_chat_member(group_id, user_id)
         self._logger.info(f"User {user_id} was kicked from group {group_id} because not confirmed")
         engine.delete_message(group_id, captha_msg_id)
+
+
+class RemoveMemberJoinedMessage(MemberPlugin):
+    """Performs removing message about new member joined"""
+
+    def execute(self, engine: bot.Engine, message: telebot.types.Message) -> None | bool:
+        engine.delete_message(message.chat.id, message.id)
