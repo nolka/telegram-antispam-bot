@@ -36,6 +36,7 @@ def main():
     engine.add_plugin(
         AntispamVerification(
             Logger("AntispamVerification"),
+            engine,
             int(os.getenv("PLUGIN_KICK_NOT_CONFIRMED_USER_AFTER", "180")),
         )
     )
