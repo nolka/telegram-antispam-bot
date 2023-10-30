@@ -70,7 +70,6 @@ class Engine:
             self._chat_member_joins, content_types=["new_chat_members"]
         )
         self._bot.register_message_handler(self.on_chat_message, content_types=["text"])
-        self._bot.register_callback_query_handler(self._user_selected_answer, func=None)
 
     def start(self) -> None:
         """
@@ -99,9 +98,13 @@ class Engine:
         """Storage getter"""
         return self._storage
 
-    def is_user_confirmed(self, group_id, user_id: int) -> bool:
-        """Performs check, if user already passed antispam validation"""
-        return self._storage.is_user_confirmed(group_id, user_id)
+    @property
+    def metrics(self) -> BotMetrics:
+        """Metrics getter"""
+        return self._metrics
+
+    def add_callback_query_handler(self, callback: callable, **kwargs) -> None:
+        self._bot.register_callback_query_handler(callback, **kwargs)
 
     def add_plugin(self, plugin) -> None:
         """Add user plugin to bot engine"""
@@ -219,24 +222,12 @@ class Engine:
         if self._run_plugins(plugins.PLUGIN_NEW_CHAT_MESSAGE, message):
             return
 
-        if not self._storage.is_user_confirmed(
+        if not self.storage.is_user_confirmed(
             message.chat.id, message.from_user.id
-        ) and not self._storage.get_user_confirm_code(
+        ) and not self.storage.get_user_confirm_code(
             message.chat.id, message.from_user.id
         ):
             # user added in group before bot
             return
-        if not self._storage.is_user_confirmed(message.chat.id, message.from_user.id):
+        if not self.storage.is_user_confirmed(message.chat.id, message.from_user.id):
             self.delete_message(chat_id=message.chat.id, message_id=message.id)
-
-    def _user_selected_answer(self, callback: telebot.types.CallbackQuery):
-        chat_id = callback.message.chat.id
-        user_id = callback.from_user.id
-
-        if (
-            not self._storage.is_user_confirmed(chat_id, user_id)
-            and self._storage.get_user_confirm_code(chat_id, user_id) == callback.data
-        ):
-            self._storage.set_user_confirmed(chat_id, user_id)
-            self.delete_message(chat_id=chat_id, message_id=callback.message.id)
-            self._metrics.inc_captha_solved_total(callback.data)
