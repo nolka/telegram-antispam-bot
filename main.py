@@ -1,3 +1,4 @@
+"""The main function for launching the bot."""
 import os
 import signal
 import sys
@@ -43,7 +44,10 @@ def main():
     engine.add_plugin(RemoveMemberJoinedMessage(Logger("RemoveMemberJoinedMessage")))
     engine.add_plugin(TestPlugin(Logger("TestPlugin")))
 
-    def handle_ctrlc(signum, frame):
+    def handle_ctrlc(
+            signum,  # pylint: disable=W0613
+            frame,  # pylint: disable=W0613
+    ):
         """
         Function for handling Ctrl+C keys pressed
         """

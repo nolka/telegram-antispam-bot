@@ -1,5 +1,5 @@
 """
-Data storage layer. Contains classes for managing bot data, which be used to perform antispam 
+Data storage layer. Contains classes for managing bot data, which be used to perform antispam
 operations
 """
 
