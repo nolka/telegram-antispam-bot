@@ -18,7 +18,4 @@ Simple telegram antispam bot written in python. Can be used in multiple groups s
   * for Mac/Linux:  ```source venv/bin/activate```
 * Update pip: ```python pip install --upgrade pip```
 * Install requirements: ```pip install -r requirements.txt```
-## An example of the bot's work:
-## The author of the project:
-Godfather Victor
-nolka@nolka.nl
+* The .env.example file contains the code of the .env file required for the anti-spam bot to work.
