@@ -4,6 +4,7 @@ when new chat member joins to group
 """
 from threading import Timer
 from random import choice, seed, shuffle
+from collections import defaultdict
 
 import requests
 import telebot
@@ -74,6 +75,7 @@ class AntispamVerification(MemberPlugin):
         super().__init__(logger)
         self.engine = engine
         self.kick_after_sec = kick_after_sec
+        self.active_timers = defaultdict(list)
 
         self.engine.add_callback_query_handler(self._user_selected_answer, func=None)
 
@@ -124,6 +126,7 @@ class AntispamVerification(MemberPlugin):
                 args=(engine, message.chat.id, new_member.id, response.get().id),
             )
             timer.start()
+            self.active_timers[(message.chat.id, new_member.id)].append(timer)
 
     def _generate_confirm_code(self) -> str:
         seed()
@@ -163,6 +166,7 @@ class AntispamVerification(MemberPlugin):
             self.engine.storage.set_user_confirmed(chat_id, user_id)
             self.engine.delete_message(chat_id=chat_id, message_id=callback.message.id)
             self.engine.metrics.inc_captha_solved_total(answer)
+            self._cleanup_user_timers(chat_id, user_id)
         else:
             self.log(
                 f"User {user_id}:  {callback.from_user.full_name} selected "
@@ -174,6 +178,7 @@ class AntispamVerification(MemberPlugin):
     ) -> None:
         """Removes chat member if they does not pressed validation button"""
         if engine.storage.is_user_confirmed(group_id, user_id):
+            self._cleanup_user_timers(group_id, user_id)
             return
 
         engine.kick_chat_member(group_id, user_id)
@@ -181,6 +186,17 @@ class AntispamVerification(MemberPlugin):
             f"User {user_id} was kicked from group {group_id} because not confirmed"
         )
         engine.delete_message(group_id, captha_msg_id)
+        self._cleanup_user_timers(group_id, user_id)
+
+    def _cleanup_user_timers(self, group_id: int, user_id: int) -> None:
+        """Clean up all timers for a specific user"""
+        timers = self.active_timers.get((group_id, user_id), [])
+        for timer in timers:
+            if timer and timer.is_alive():
+                timer.cancel()
+
+        if (group_id, user_id) in self.active_timers:
+            del self.active_timers[(group_id, user_id)]
 
 
 class RemoveMemberJoinedMessage(MemberPlugin):

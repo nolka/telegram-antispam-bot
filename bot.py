@@ -61,6 +61,7 @@ class Engine:
         self._plugins = defaultdict(list)
         self._msg_queue = Queue()
         self._reply_queue = Queue(25)
+        self._admins: list[int] = list()
 
         self._threads = [
             Thread(target=self._send_message_queue, args=(self._reply_queue,)),
@@ -68,6 +69,9 @@ class Engine:
 
         self._bot.register_message_handler(
             self._chat_member_joins, content_types=["new_chat_members"]
+        )
+        self._bot.register_message_reaction_handler(
+            self._chat_member_reactions
         )
         self._bot.register_message_handler(self.on_chat_message, content_types=["text"])
 
@@ -92,6 +96,19 @@ class Engine:
 
         self._bot.stop_bot()
         self.log("Bot stopped")
+
+    def add_admins(self, admins: list[int]|str) -> None:
+        """Set bot admins"""
+        if not admins:
+            return
+
+        if isinstance(admins, str):
+            self._admins = [int(x) for x in admins.split(",")]
+        if isinstance(admins, list):
+            self._admins = [int(x) for x in admins]
+
+    def is_user_admin(self, user_id: int) -> bool:
+        return user_id in self._admins
 
     @property
     def storage(self) -> AbstractStorage:
@@ -193,6 +210,15 @@ class Engine:
 
         if self._run_plugins(plugins.PLUGIN_NEW_CHAT_MEMBER, message):
             return
+
+    def _chat_member_reactions(self, message: telebot.types.Message):
+        self.log(f"got reaction: {message}")
+        # self._storage.on_added_to_group(message.chat.id)
+
+        # self._metrics.inc_members_joined_total(message.chat.id, message.from_user.id)
+
+        # if self._run_plugins(plugins.PLUGIN_NEW_CHAT_MEMBER, message):
+        #     return
 
     def _run_plugins(self, plugin_type: int, message: telebot.types.Message) -> bool:
         for plugin in self._plugins[plugin_type]:

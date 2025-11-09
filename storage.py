@@ -36,6 +36,22 @@ class AbstractStorage(ABC):
     def on_added_to_group(self, group_id: int) -> None:
         pass
 
+    @abstractmethod
+    def get_spam_messages(self) -> list[str]:
+        pass
+
+    @abstractmethod
+    def add_spam_message(self, msg: str) -> None:
+        pass
+
+    @abstractmethod
+    def get_nonspam_messages(self) -> list[str]:
+        pass
+
+    @abstractmethod
+    def add_nonspam_message(self, msg: str) -> None:
+        pass
+
 
 def convert_path(path: str) -> str:
     """
@@ -67,6 +83,9 @@ class FileSystem(AbstractStorage):
     confirm_codes_dir = "confirm_codes"
 
     groups_list_file = "groups.txt"
+    spam_messages_file= "spam_messages.txt"
+    nonspam_messages_file = "nonspam_messages.txt"
+    ml_data_file = "ml_data.json"
 
     required_dirs = (confirmed_dir, confirm_codes_dir)
 
@@ -141,3 +160,27 @@ class FileSystem(AbstractStorage):
     def _create_group_dir(self, group_id: int) -> None:
         for dir_path in self.required_dirs:
             create_storage_dir(to_path(self.storage_dir, group_id, dir_path))
+
+    def get_spam_messages(self) -> list[str]:
+        with codecs.open(
+            to_path(self.storage_dir, self.spam_messages_file), encoding="utf-8"
+        ) as fh:
+            return fh.readlines()
+
+    def add_spam_message(self, msg: str) -> None:
+        with codecs.open(
+            to_path(self.storage_dir, self.spam_messages_file), "a", encoding="utf-8"
+        ) as fh:
+            fh.write(msg.replace("\n", " ")+"\n")
+
+    def add_nonspam_message(self, msg: str) -> None:
+        with codecs.open(
+            to_path(self.storage_dir, self.nonspam_messages_file), "a", encoding="utf-8"
+        ) as fh:
+            fh.write(msg.replace("\n", " ")+"\n")
+
+    def get_nonspam_messages(self) -> list[str]:
+        with codecs.open(
+            to_path(self.storage_dir, self.nonspam_messages_file), "r+", encoding="utf-8"
+        ) as fh:
+            return fh.readlines()

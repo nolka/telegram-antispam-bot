@@ -15,6 +15,8 @@ RUN rm -fr storage && \
     if [ -f .env ]; then \
     rm .env; \
     fi
+RUN apk add python3-dev libpq-dev build-base
 RUN pip install --no-cache-dir -r requirements.txt
+RUN apk del python3-dev libpq-dev build-base
 
 CMD [ "python", "./main.py" ]
