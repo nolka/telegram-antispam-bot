@@ -1,5 +1,6 @@
 FROM python:3.11-alpine
 
+ENV BOT_ADMINS=
 ENV TELEGRAM_BOT_USERNAME=pd_antispam_bot
 ENV TELEGRAM_BOT_TOKEN=
 ENV PLUGIN_KICK_NOT_CONFIRMED_USER_AFTER=
@@ -15,7 +16,7 @@ RUN rm -fr storage && \
     if [ -f .env ]; then \
     rm .env; \
     fi
-RUN apk add python3-dev libpq-dev build-base
+RUN apk add python3-dev libpq-dev build-base libgomp libstdc++
 RUN pip install --no-cache-dir -r requirements.txt
 RUN apk del python3-dev libpq-dev build-base
 
