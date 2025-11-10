@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 from bot import Engine
 from logger import Logger
 from plugins.members import CASBan, AntispamVerification, RemoveMemberJoinedMessage
-from plugins.chat_message import TestPlugin
+from plugins.chat_message import TestPlugin, SpamDetectorPlugin
 from storage import FileSystem
 from metrics import start_metrics_server, BotMetrics
 
@@ -19,7 +19,6 @@ def main():
     Main entrypoint
     """
 
-    load_dotenv()
     start_metrics_server(
         int(os.getenv("METRICS_PORT", "9090")), os.getenv("METRICS_HOST", "127.0.0.1")
     )
@@ -33,6 +32,7 @@ def main():
     engine = Engine(
         os.getenv("TELEGRAM_BOT_USERNAME"), bot, bot_metrics, storage, logger
     )
+    engine.add_admins(os.getenv("BOT_ADMINS"))
     engine.add_plugin(CASBan(Logger("CasBan")))
     engine.add_plugin(
         AntispamVerification(
@@ -42,6 +42,7 @@ def main():
         )
     )
     engine.add_plugin(RemoveMemberJoinedMessage(Logger("RemoveMemberJoinedMessage")))
+    engine.add_plugin(SpamDetectorPlugin(Logger("SpamDetectorPlugin"), storage))
     engine.add_plugin(TestPlugin(Logger("TestPlugin")))
 
     def handle_ctrlc(
@@ -62,4 +63,6 @@ def main():
 
 
 if __name__ == "__main__":
+    load_dotenv()
+
     main()

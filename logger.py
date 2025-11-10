@@ -25,6 +25,10 @@ class Logger:
         """ Logs informational message """
         self._log.info(message)
 
+    def warning(self, message: str) -> None:
+        """ Logs warning message """
+        self._log.warning(message)
+
     def error(self, message: str) -> None:
         """ Logs error message """
         self._log.error(message)
