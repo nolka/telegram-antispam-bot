@@ -9,6 +9,7 @@ from storage import AbstractStorage
 from plugins import PLUGIN_NEW_CHAT_MESSAGE, AbstractPlugin
 from plugins.spam_filter import SpamFilter
 
+REACTION_POSSIBLE_SPAM = "🤔"
 
 class ChatMessagePlugin(AbstractPlugin):
     """ Base class for messaging plugins """
@@ -24,7 +25,6 @@ class TestPlugin(ChatMessagePlugin):
         self, engine: bot.Engine, message: telebot.types.Message
     ) -> None | bool:
         self._logger.info(f"Received message")
-        pass
 
 class SpamDetectorPlugin(ChatMessagePlugin):
     known_commands: dict = {
@@ -50,6 +50,7 @@ class SpamDetectorPlugin(ChatMessagePlugin):
 
         if self._spam_filter.is_spam(message.text):
             self._logger.warning(f"spam detected from user: {message.from_user.id}({message.from_user.first_name}): {message.text}")
+            engine.set_message_reaction(message.chat.id, message.id, REACTION_POSSIBLE_SPAM)
             return
 
         self._storage.add_nonspam_message(message.text)

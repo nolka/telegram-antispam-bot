@@ -5,6 +5,7 @@ import traceback
 
 import telebot
 from telebot.apihelper import ApiException
+from telebot.types import ReactionTypeEmoji
 
 from entities.delayed_response import DelayedResponseQueue
 from logger import Logger
@@ -144,6 +145,16 @@ class Engine:
         """
         self._reply_queue.put(
             EngineTask("delete_message", {"chat_id": chat_id, "message_id": message_id})
+        )
+
+    def set_message_reaction(self, chat_id, message_id: int, reaction: str) -> None:
+        self._reply_queue.put(
+            EngineTask(
+                "set_message_reaction", {
+                "chat_id": chat_id,
+                "message_id": message_id,
+                "reaction": (ReactionTypeEmoji(reaction),)
+            })
         )
 
     def kick_chat_member(self, chat_id: int, user_id: int):
