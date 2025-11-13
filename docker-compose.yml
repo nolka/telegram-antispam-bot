@@ -1,4 +1,4 @@
-version: '3.3'
+version: "3.3"
 
 services:
   bot-app:
@@ -18,17 +18,16 @@ services:
       - ./storage:/app/storage
     working_dir: /app
 
-  db:
-    image: postgres:17-alpine
-    restart: always
-    environment:
-      - POSTGRES_USER=$POSTGRES_USER
-      - POSTGRES_PASSWORD=$POSTGRES_PASSWORD
-      - POSTGRES_DB=$POSTGRES_DB
-    ports:
-      - "127.0.0.1:5432:5432"
-    volumes:
-      - db_data:/var/lib/postgresql/data
-
-volumes:
-  db_data:
+  # db:
+  #   image: postgres:17-alpine
+  #   restart: always
+  #   environment:
+  #     - POSTGRES_USER=$POSTGRES_USER
+  #     - POSTGRES_PASSWORD=$POSTGRES_PASSWORD
+  #     - POSTGRES_DB=$POSTGRES_DB
+  #   ports:
+  #     - "127.0.0.1:5432:5432"
+  #   volumes:
+  #     - db_data:/var/lib/postgresql/data
+# volumes:
+#   db_data:

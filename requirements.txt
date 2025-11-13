@@ -6,3 +6,5 @@ alembic==1.14.0
 sqlalchemy==2.0.36
 psycopg2==2.9.10
 scikit-learn==1.7.2
+nltk==3.9.2
+pymorphy3==2.0.6
