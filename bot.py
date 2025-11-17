@@ -208,12 +208,14 @@ class Engine:
                     task.method_name, task.kwargs.get("chat_id", 0)
                 )
             except ApiException as exc:
+                self.metrics.inc_api_errors_total(exc.__class__.__name__)
                 self.log(
-                    f"Unhandled ApiException: {exc}\n{traceback.format_exc()}",
+                    f"Unhandled ApiException: {exc.function_name} -> {exc.result}:\n{exc}\n{traceback.format_exc()}",
                     severity="error",
                 )
 
             except Exception as exc:
+                self.metrics.inc_api_errors_total(exc.__class__.__name__)
                 self.log(
                     f"Unhandled Exception: {exc}\n{traceback.format_exc()}",
                     "error",
@@ -246,18 +248,36 @@ class Engine:
             return
 
     def _chat_member_reactions(self, message: telebot.types.Message):
-        self.log(f"got reaction: {message}")
+        # self.log(f"got reaction: {message}")
         # self._storage.on_added_to_group(message.chat.id)
 
         # self._metrics.inc_members_joined_total(message.chat.id, message.from_user.id)
 
-        # if self._run_plugins(plugins.PLUGIN_NEW_CHAT_MEMBER, message):
-        #     return
+        if self._run_plugins(plugins.PLUGIN_NEW_CHAT_MESSAGE, message):
+            return
 
-    def _run_plugins(self, plugin_type: int, message: telebot.types.Message) -> bool:
+    def _run_plugins(
+        self,
+        plugin_type: int,
+        message: telebot.types.Message | telebot.types.MessageReactionUpdated,
+    ) -> bool:
         for plugin in self._plugins[plugin_type]:
             try:
-                if plugin.execute(self, message):
+                match message.__class__:
+                    case telebot.types.Message:
+                        handler_name = "execute"
+                    case telebot.types.MessageReactionUpdated:
+                        handler_name = "execute_reaction"
+
+                handler = getattr(plugin, handler_name, None)
+                if not handler:
+                    self.log(
+                        f"Plugin {plugin.__class__.__name__} does not have method {handler_name}",
+                        "warning",
+                    )
+                    continue
+
+                if handler(self, message):
                     return True
             except Exception as exc:
                 cls_name = plugin.__class__.__name__

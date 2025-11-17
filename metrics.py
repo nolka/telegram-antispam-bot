@@ -1,4 +1,4 @@
-from prometheus_client import start_http_server, Counter
+from prometheus_client import Counter, start_http_server
 
 
 def start_metrics_server(port: int, host: str = "0.0.0.0"):
@@ -38,12 +38,40 @@ class BotMetrics:
                 "error_class",
             ],
         )
+        self.api_errors_total = Counter(
+            "api_errors_total",
+            "Total number of errors in telegram api",
+            [
+                "error_class",
+            ],
+        )
+        self.tasks_dropped_total = Counter(
+            "tasks_dropped_total",
+            "Total number of dropped tasks from queue because of processing errors",
+            [],
+        )
         self.commands_executed_total = Counter(
             "commands_executed_total",
             "Total number of executed commands",
             [
                 "command_name",
                 "chat_id",
+            ],
+        )
+        self.spam_message_detected_total = Counter(
+            "spam_message_detected_total",
+            "Total number of detected spam messages",
+            [
+                "chat_id",
+                "user_id",
+            ],
+        )
+        self.spam_message_added_total = Counter(
+            "spam_message_added_total",
+            "Total number of added spam messages",
+            [
+                "chat_id",
+                "user_id",
             ],
         )
 
@@ -59,5 +87,17 @@ class BotMetrics:
     def inc_plugin_errors_total(self, plugin_name: str, error_class: str):
         self.plugin_errors_total.labels(plugin_name, error_class).inc()
 
+    def inc_api_errors_total(self, error_class: str):
+        self.api_errors_total.labels(error_class).inc()
+
+    def inc_tasks_dropped_total(self):
+        self.tasks_dropped_total.inc()
+
     def inc_commands_executed_total(self, command_name: str, chat_id: int):
         self.commands_executed_total.labels(command_name, chat_id).inc()
+
+    def inc_spam_message_detected_total(self, chat_id: int, user_id: int):
+        self.spam_message_detected_total.labels(chat_id, user_id).inc()
+
+    def inc_spam_message_added_total(self, chat_id: int, user_id: int):
+        self.spam_message_added_total.labels(chat_id, user_id).inc()

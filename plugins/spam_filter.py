@@ -1,18 +1,15 @@
 import hashlib
 import re
 import string
+from collections import defaultdict
+from multiprocessing import Pool
 
 import nltk
-import numpy as np
 from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
 from pymorphy3 import MorphAnalyzer
 from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics import (
-    accuracy_score,
-    classification_report,
-    confusion_matrix,
-)
+from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
 from sklearn.model_selection import train_test_split
 from sklearn.naive_bayes import MultinomialNB
 
@@ -64,23 +61,17 @@ class RussianTextPreprocessor:
         }
         self.stop_words.update(additional_stopwords)
 
-    def preprocess_text(self, text):
+    def preprocess_text(self, text) -> str:
         text = text.lower()
         text = re.sub(f"[{re.escape(string.punctuation)}]", " ", text)
         text = re.sub(r"\d+", "", text)
         text = re.sub(r"\s+", " ", text).strip()
         tokens = word_tokenize(text, language="russian")
 
-        tokens = [
-            token
-            for token in tokens
-            if token not in self.stop_words and len(token) > 2
-        ]
+        tokens = [token for token in tokens if token not in self.stop_words and len(token) > 2]
 
         if self.use_lemmatization and self.morph:
-            tokens = [
-                self.morph.parse(token)[0].normal_form for token in tokens
-            ]
+            tokens = [self.morph.parse(token)[0].normal_form for token in tokens]
 
         return " ".join(tokens)
 
@@ -94,12 +85,33 @@ class PredictionResult:
         self.text = text
 
     def __str__(self):
-        return f"<PredictionResult: {self.is_spam}, {self.possibility}, {self.text}>"
+        return f"<PredictionResult: {self.is_spam}, {self.possibility:.2f}, {self.text}>"
+
+
+class SpamMessageCollection:
+    def __init__(self):
+        self.message_map: dict[int, int] = defaultdict(int)
+
+    def get_score(self, chat_id, message_id, user_id: int) -> int:
+        return self.message_map[(chat_id, message_id, user_id)]
+
+    def add_score(self, chat_id, message_id, user_id: int, value: int = 1) -> int:
+        self.message_map[(chat_id, message_id, user_id)] += 1
+        print(self.message_map)
+
+        return self.get_score(chat_id, message_id, user_id)
+
+    def has_item(self, chat_id, message_id, user_id: int) -> bool:
+        return self.message_map.get((chat_id, message_id, user_id), None) is not None
 
 
 class SpamFilter:
     def __init__(
-        self, logger: Logger, storage: AbstractStorage, threshold: float = 0.6
+        self,
+        logger: Logger,
+        storage: AbstractStorage,
+        threshold: float = 0.6,
+        worker_pool_size: int = 4,
     ):
         nltk.download("punkt")
         nltk.download("punkt_tab")
@@ -108,9 +120,7 @@ class SpamFilter:
         self._logger = logger
         self._storage: AbstractStorage = storage
         self._threshold = threshold
-        self._preprocessor = RussianTextPreprocessor(
-            use_stemming=True, use_lemmatization=True
-        )
+        self._preprocessor = RussianTextPreprocessor(use_stemming=True, use_lemmatization=True)
         self._vectorizer = TfidfVectorizer(
             max_features=10000,
             lowercase=True,
@@ -123,6 +133,7 @@ class SpamFilter:
             KIND_SPAM: {},
             KIND_NORMAL: {},
         }
+        self._worker_pool_size = worker_pool_size
         self._model: MultinomialNB = None
         self.is_trained: bool = False
         self.counter_before_learn: int = 0
@@ -138,18 +149,19 @@ class SpamFilter:
             self._messages[KIND_NORMAL].values()
         )
 
-        labels = [KIND_SPAM] * len(self._messages[KIND_SPAM]) + [
-            KIND_NORMAL
-        ] * len(self._messages[KIND_NORMAL])
+        labels = [KIND_SPAM] * len(self._messages[KIND_SPAM]) + [KIND_NORMAL] * len(
+            self._messages[KIND_NORMAL]
+        )
 
         self._logger.info("Processing messages...")
         processed_messages = []
-        for i, message in enumerate(messages):
-            if i % 1000 == 0:
-                self._logger.info(f"Processed msgs: {i}/{len(messages)}")
-            processed_messages.append(
-                self._preprocessor.preprocess_text(message)
-            )
+
+        with Pool(self._worker_pool_size) as pool:
+            result = pool.map(RussianTextPreprocessor().preprocess_text, messages)
+            for i, msg in enumerate(result):
+                processed_messages.append(msg)
+                if i % 1000 == 0:
+                    self._logger.info(f"Received processed: {i}/{len(messages)}")
 
         # Разделение данных на обучающую и тестовую выборки
         X_train, X_test, y_train, y_test = train_test_split(
@@ -177,9 +189,9 @@ class SpamFilter:
         self._logger.info("MODEL PERFORMANCE")
         self._logger.info(f"{'=' * 50}")
         self._logger.info(f"Accuracy: {accuracy_score(y_test, y_pred):.4f}")
-        self._logger.info(f"\nClassification report:")
+        self._logger.info("\nClassification report:")
         self._logger.info(classification_report(y_test, y_pred))
-        self._logger.info(f"\nErrors matrix:")
+        self._logger.info("\nErrors matrix:")
         self._logger.info(confusion_matrix(y_test, y_pred))
 
         self.is_trained = True
@@ -208,10 +220,7 @@ class SpamFilter:
     def add_phrases(self, kind: int, phrases: list[str]) -> None:
         self.add_messages(kind, phrases)
 
-        if (
-            kind == KIND_SPAM
-            or self.counter_before_learn >= COUNTER_BEFORE_LEARN_MAX
-        ):
+        if kind == KIND_SPAM or self.counter_before_learn >= COUNTER_BEFORE_LEARN_MAX:
             self._build_ml_model()
             self.counter_before_learn = 0
             self.save()
@@ -243,9 +252,7 @@ class SpamFilter:
         proba = self._model.predict_proba(message_vec)
         self._logger.info(f"Predict proba: {proba}")
         probability = self._model.predict_proba(message_vec)[0][1]
-        kind_result = (
-            KIND_SPAM if probability > self._threshold else KIND_NORMAL
-        )
+        kind_result = KIND_SPAM if probability > self._threshold else KIND_NORMAL
 
         return PredictionResult(
             kind_result == KIND_SPAM,

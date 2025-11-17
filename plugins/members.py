@@ -2,17 +2,17 @@
 This module contains user-defined plugins which can be plugged into bot to handle events
 when new chat member joins to group
 """
-from threading import Timer
-from random import choice, seed, shuffle
 from collections import defaultdict
+from random import choice, seed, shuffle
+from threading import Timer
 
 import requests
 import telebot
 
 import bot
-from views import messages
-from plugins import AbstractPlugin, PLUGIN_NEW_CHAT_MEMBER
 from entities.delayed_response import DelayedResponseQueue
+from plugins import PLUGIN_NEW_CHAT_MEMBER, AbstractPlugin
+from views import messages
 
 _CAS_HOST = "https://api.cas.chat/check"
 
