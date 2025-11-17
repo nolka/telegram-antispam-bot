@@ -11,7 +11,6 @@ import plugins
 from entities.delayed_response import DelayedResponseQueue
 from logger import Logger
 from metrics import BotMetrics
-from plugins.types import AbstractPlugin
 from storage import AbstractStorage
 
 
