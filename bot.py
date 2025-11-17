@@ -11,7 +11,7 @@ import plugins
 from entities.delayed_response import DelayedResponseQueue
 from logger import Logger
 from metrics import BotMetrics
-from plugins import AbstractPlugin
+from plugins.types import AbstractPlugin
 from storage import AbstractStorage
 
 
@@ -60,7 +60,7 @@ class Engine:
         self._storage = storage
         self._logger = logger
 
-        self._plugins: dict[int, list[AbstractPlugin]] = defaultdict(list)
+        self._plugins: dict[int, list[plugins.AbstractPlugin]] = defaultdict(list)
         self._updates_queue: Queue = Queue()
         self._reply_queue: Queue = Queue(25)
         self._shutdown_event = Event()
