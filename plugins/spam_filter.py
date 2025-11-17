@@ -111,7 +111,7 @@ class SpamFilter:
         logger: Logger,
         storage: AbstractStorage,
         threshold: float = 0.6,
-        worker_pool_size: int = 4,
+        worker_pool_size: int = 2,
     ):
         nltk.download("punkt")
         nltk.download("punkt_tab")

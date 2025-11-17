@@ -1,7 +1,7 @@
 import traceback
 from collections import defaultdict
 from queue import Queue
-from threading import Thread
+from threading import Event, Thread
 
 import telebot
 from telebot.apihelper import ApiException
@@ -53,26 +53,30 @@ class Engine:
         storage: AbstractStorage,
         logger: Logger,
     ) -> None:
-        self.bot_username = bot_username
+        self.bot_username: str = bot_username
         self._bot = bot
         self._metrics = metrics
         self._storage = storage
         self._logger = logger
 
-        self._plugins: dict = defaultdict(list)
-        self._msg_queue = Queue()
-        self._reply_queue = Queue(25)
+        self._plugins: dict[int, list[plugins.AbstractPlugin]] = defaultdict(list)
+        self._updates_queue: Queue = Queue()
+        self._reply_queue: Queue = Queue(25)
+        self._shutdown_event = Event()
         self._admins: list[int] = list()
 
         self._threads = [
-            Thread(target=self._send_message_queue, args=(self._reply_queue,)),
+            # For handling updates in single thread to decrease resources consumption by the bot.
+            # Yes, it makes the bot is
+            Thread(target=self._process_updates, args=(self._updates_queue,)),
+            # Used for rate-limited api calls to telegram bot api
+            Thread(target=self._send_message_from_queue, args=(self._reply_queue,)),
         ]
 
         self._bot.register_message_handler(
-            self._chat_member_joins, content_types=["new_chat_members"]
+            self._enqueue_update, content_types=["text", "new_chat_members"]
         )
-        self._bot.register_message_reaction_handler(self._chat_member_reactions)
-        self._bot.register_message_handler(self.on_chat_message, content_types=["text"])
+        self._bot.register_message_reaction_handler(self._enqueue_update)
 
     def start(self) -> None:
         """
@@ -87,14 +91,17 @@ class Engine:
         """
         Stops bot engine
         """
-        for _ in range(len(self._threads)):
-            self._reply_queue.put(QueueExit)
+        self.log("Sending ExitQueue to worker threads...")
+        self._reply_queue.put(QueueExit)
+        self._updates_queue.put(QueueExit)
 
         # terminating threads
+        self.log("Joining worker threads...")
         for thread in self._threads:
             thread.join()
 
         # greceful terminating plugins
+        self.log("Shutting down plugins...")
         for plugin_type in self._plugins.keys():
             while len(self._plugins[plugin_type]):
                 plugin = self._plugins[plugin_type].pop()
@@ -103,7 +110,7 @@ class Engine:
                     exitfunc()
 
         self._bot.stop_bot()
-        self.log("Bot stopped")
+        self.log("Bot stopped.")
 
     def add_admins(self, admins: list[int] | str) -> None:
         """Set bot admins"""
@@ -191,10 +198,43 @@ class Engine:
             EngineTask("ban_chat_member", {"chat_id": chat_id, "user_id": user_id})
         )
 
-    def _send_message_queue(self, queue: Queue):
+    def _enqueue_update(
+        self, message: telebot.types.Message | telebot.types.MessageReactionUpdated
+    ) -> None:
+        self._updates_queue.put(message)
+
+    def _process_updates(self, queue: Queue) -> None:
         while True:
-            task: EngineTask = queue.get()
             try:
+                task = queue.get()
+                if task == QueueExit:
+                    return
+
+                message_type, message = task.__class__, task
+                match message_type:
+                    case telebot.types.MessageReactionUpdated:
+                        self.on_chat_member_reactions(message)
+                    case telebot.types.Message:
+                        match message.content_type:
+                            case "text":
+                                self.on_chat_message(message)
+                            case "new_chat_members":
+                                self.on_chat_member_joins(message)
+                            case _:
+                                self.log(f"Unknown message content_type: {message.content_type}")
+                    case _:
+                        self.log(f"Unknown message_type: {message_type}")
+            except Exception as e:
+                self.log(f"Unhandled error when processing updates: {e}")
+            finally:
+                queue.task_done()
+
+        self.log("Exiting from updates processing thread.")
+
+    def _send_message_from_queue(self, queue: Queue):
+        while True:
+            try:
+                task: EngineTask = queue.get()
                 if task == QueueExit:
                     return
 
@@ -229,6 +269,8 @@ class Engine:
             finally:
                 queue.task_done()
 
+        self.log("Exiting from messages sender thread.")
+
     def log(self, msg: str, severity: str = "info") -> None:
         """Writes log message"""
         match severity:
@@ -237,7 +279,7 @@ class Engine:
             case _:
                 self._logger.info(msg)
 
-    def _chat_member_joins(self, message: telebot.types.Message):
+    def on_chat_member_joins(self, message: telebot.types.Message):
         # Hotfix for handling messages from groups when storage does not have
         # info about where bot is member. TODO Make pretty solution
         self._storage.on_added_to_group(message.chat.id)
@@ -247,11 +289,9 @@ class Engine:
         if self._run_plugins(plugins.PLUGIN_NEW_CHAT_MEMBER, message):
             return
 
-    def _chat_member_reactions(self, message: telebot.types.Message):
+    def on_chat_member_reactions(self, message: telebot.types.Message):
         # self.log(f"got reaction: {message}")
-        # self._storage.on_added_to_group(message.chat.id)
-
-        # self._metrics.inc_members_joined_total(message.chat.id, message.from_user.id)
+        self._storage.on_added_to_group(message.chat.id)
 
         if self._run_plugins(plugins.PLUGIN_NEW_CHAT_MESSAGE, message):
             return
@@ -268,6 +308,8 @@ class Engine:
                         handler_name = "execute"
                     case telebot.types.MessageReactionUpdated:
                         handler_name = "execute_reaction"
+                    case _:
+                        self.log("Dont know how to handle {message.__class__} in plugin system.")
 
                 handler = getattr(plugin, handler_name, None)
                 if not handler:
