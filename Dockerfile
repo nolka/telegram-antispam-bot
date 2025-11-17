@@ -1,4 +1,4 @@
-FROM python:3.11-alpine
+FROM python:3.12-alpine
 
 ENV BOT_ADMINS=
 ENV TELEGRAM_BOT_USERNAME=pd_antispam_bot
@@ -16,8 +16,9 @@ RUN rm -fr storage && \
     if [ -f .env ]; then \
     rm .env; \
     fi
-RUN apk add python3-dev libpq-dev build-base libgomp libstdc++
+RUN apk add --no-cache python3-dev libpq-dev build-base libgomp libstdc++
 RUN pip install --no-cache-dir -r requirements.txt
+RUN python -c 'import nltk; nltk.download("punkt"); nltk.download("punkt_tab"); nltk.download("stopwords")'
 RUN apk del python3-dev libpq-dev build-base
 
 CMD [ "python", "./main.py" ]

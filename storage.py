@@ -3,9 +3,9 @@ Data storage layer. Contains classes for managing bot data, which be used to per
 operations
 """
 
+import codecs
 import os
 from abc import ABC, abstractmethod
-import codecs
 
 
 class AbstractStorage(ABC):
@@ -41,15 +41,15 @@ class AbstractStorage(ABC):
         pass
 
     @abstractmethod
-    def add_spam_message(self, msg: str) -> None:
+    def save_spam_messages(self, messages: list[str]) -> None:
         pass
 
     @abstractmethod
-    def get_nonspam_messages(self) -> list[str]:
+    def get_normal_messages(self) -> list[str]:
         pass
 
     @abstractmethod
-    def add_nonspam_message(self, msg: str) -> None:
+    def save_normal_messages(self, messages: list[str]) -> None:
         pass
 
 
@@ -83,7 +83,7 @@ class FileSystem(AbstractStorage):
     confirm_codes_dir = "confirm_codes"
 
     groups_list_file = "groups.txt"
-    spam_messages_file= "spam_messages.txt"
+    spam_messages_file = "spam_messages.txt"
     nonspam_messages_file = "nonspam_messages.txt"
     ml_data_file = "ml_data.json"
 
@@ -111,7 +111,9 @@ class FileSystem(AbstractStorage):
             create_storage_dir(self.storage_dir)
 
     def is_user_confirmed(self, group_id: int, user_id: int) -> bool:
-        return os.path.exists(to_path(self.storage_dir, group_id, "confirmed", user_id))
+        return os.path.exists(
+            to_path(self.storage_dir, group_id, "confirmed", user_id)
+        )
 
     def set_user_confirmed(self, group_id: int, user_id: int) -> bool:
         confirmed_file = to_path(
@@ -129,12 +131,16 @@ class FileSystem(AbstractStorage):
     def set_user_confirm_code(
         self, group_id: int, user_id: int, confirm_code: str
     ) -> None:
-        file_name = to_path(self.storage_dir, group_id, "confirm_codes", user_id)
+        file_name = to_path(
+            self.storage_dir, group_id, "confirm_codes", user_id
+        )
         with codecs.open(file_name, "w", encoding="utf-8") as file:
             file.write(confirm_code)
 
     def get_user_confirm_code(self, group_id: int, user_id: int) -> str | None:
-        file_name = to_path(self.storage_dir, group_id, "confirm_codes", user_id)
+        file_name = to_path(
+            self.storage_dir, group_id, "confirm_codes", user_id
+        )
         try:
             with codecs.open(file_name, "r", encoding="utf-8") as file:
                 return file.read()
@@ -149,7 +155,9 @@ class FileSystem(AbstractStorage):
 
     def _save_groups_list(self) -> None:
         with codecs.open(
-            to_path(self.storage_dir, self.groups_list_file), "w", encoding="utf-8"
+            to_path(self.storage_dir, self.groups_list_file),
+            "w",
+            encoding="utf-8",
         ) as handle:
             handle.writelines([f"{x}\n" for x in self.groups_list])
 
@@ -167,20 +175,28 @@ class FileSystem(AbstractStorage):
         ) as fh:
             return fh.readlines()
 
-    def add_spam_message(self, msg: str) -> None:
+    def save_spam_messages(self, messages: list[str]) -> None:
         with codecs.open(
-            to_path(self.storage_dir, self.spam_messages_file), "a", encoding="utf-8"
+            to_path(self.storage_dir, self.spam_messages_file),
+            "w",
+            encoding="utf-8",
         ) as fh:
-            fh.write(msg.replace("\n", " ")+"\n")
+            for msg in messages:
+                fh.write(msg + "\n")
 
-    def add_nonspam_message(self, msg: str) -> None:
+    def save_normal_messages(self, messages: list[str]) -> None:
         with codecs.open(
-            to_path(self.storage_dir, self.nonspam_messages_file), "a", encoding="utf-8"
+            to_path(self.storage_dir, self.nonspam_messages_file),
+            "w",
+            encoding="utf-8",
         ) as fh:
-            fh.write(msg.replace("\n", " ")+"\n")
+            for msg in messages:
+                fh.write(msg + "\n")
 
-    def get_nonspam_messages(self) -> list[str]:
+    def get_normal_messages(self) -> list[str]:
         with codecs.open(
-            to_path(self.storage_dir, self.nonspam_messages_file), "r+", encoding="utf-8"
+            to_path(self.storage_dir, self.nonspam_messages_file),
+            "r+",
+            encoding="utf-8",
         ) as fh:
             return fh.readlines()

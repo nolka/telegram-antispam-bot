@@ -1,4 +1,5 @@
 """The main function for launching the bot."""
+
 import os
 import signal
 import sys
@@ -8,10 +9,10 @@ from dotenv import load_dotenv
 
 from bot import Engine
 from logger import Logger
-from plugins.members import CASBan, AntispamVerification, RemoveMemberJoinedMessage
-from plugins.chat_message import TestPlugin, SpamDetectorPlugin
+from metrics import BotMetrics, start_metrics_server
+from plugins.chat_message import MessageLoggerPlugin, SpamDetectorPlugin
+from plugins.members import AntispamVerification, CASBan, RemoveMemberJoinedMessage
 from storage import FileSystem
-from metrics import start_metrics_server, BotMetrics
 
 
 def main():
@@ -24,14 +25,10 @@ def main():
     )
 
     bot_metrics = BotMetrics()
-    storage = FileSystem(
-        os.path.join(os.path.dirname(os.path.abspath(sys.argv[0])), "storage")
-    )
+    storage = FileSystem(os.path.join(os.path.dirname(os.path.abspath(sys.argv[0])), "storage"))
     bot = telebot.TeleBot(os.getenv("TELEGRAM_BOT_TOKEN"))
     logger = Logger("BOT")
-    engine = Engine(
-        os.getenv("TELEGRAM_BOT_USERNAME"), bot, bot_metrics, storage, logger
-    )
+    engine = Engine(os.getenv("TELEGRAM_BOT_USERNAME"), bot, bot_metrics, storage, logger)
     engine.add_admins(os.getenv("BOT_ADMINS"))
     engine.add_plugin(CASBan(Logger("CasBan")))
     engine.add_plugin(
@@ -42,12 +39,12 @@ def main():
         )
     )
     engine.add_plugin(RemoveMemberJoinedMessage(Logger("RemoveMemberJoinedMessage")))
-    engine.add_plugin(SpamDetectorPlugin(Logger("SpamDetectorPlugin"), storage))
-    engine.add_plugin(TestPlugin(Logger("TestPlugin")))
+    engine.add_plugin(SpamDetectorPlugin(Logger("SpamDetectorPlugin"), storage, 0.9))
+    engine.add_plugin(MessageLoggerPlugin(Logger("MessageLoggerPlugin")))
 
     def handle_ctrlc(
-            signum,  # pylint: disable=W0613
-            frame,  # pylint: disable=W0613
+        signum,  # pylint: disable=W0613
+        frame,  # pylint: disable=W0613
     ):
         """
         Function for handling Ctrl+C keys pressed

@@ -12,7 +12,7 @@ PLUGIN_NEW_CHAT_MEMBER = 2
 
 
 class AbstractPlugin(ABC):
-    """ Base class for all of plugins """
+    """Base class for all of plugins"""
 
     def __init__(self, logger: Logger) -> None:
         self._logger = logger

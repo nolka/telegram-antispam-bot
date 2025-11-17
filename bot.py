@@ -1,17 +1,17 @@
+import traceback
+from collections import defaultdict
 from queue import Queue
 from threading import Thread
-from collections import defaultdict
-import traceback
 
 import telebot
 from telebot.apihelper import ApiException
 from telebot.types import ReactionTypeEmoji
 
+import plugins
 from entities.delayed_response import DelayedResponseQueue
 from logger import Logger
-from storage import AbstractStorage
-import plugins
 from metrics import BotMetrics
+from storage import AbstractStorage
 
 
 class QueueExit:
@@ -59,7 +59,7 @@ class Engine:
         self._storage = storage
         self._logger = logger
 
-        self._plugins = defaultdict(list)
+        self._plugins: dict = defaultdict(list)
         self._msg_queue = Queue()
         self._reply_queue = Queue(25)
         self._admins: list[int] = list()
@@ -71,9 +71,7 @@ class Engine:
         self._bot.register_message_handler(
             self._chat_member_joins, content_types=["new_chat_members"]
         )
-        self._bot.register_message_reaction_handler(
-            self._chat_member_reactions
-        )
+        self._bot.register_message_reaction_handler(self._chat_member_reactions)
         self._bot.register_message_handler(self.on_chat_message, content_types=["text"])
 
     def start(self) -> None:
@@ -92,13 +90,22 @@ class Engine:
         for _ in range(len(self._threads)):
             self._reply_queue.put(QueueExit)
 
+        # terminating threads
         for thread in self._threads:
             thread.join()
+
+        # greceful terminating plugins
+        for plugin_type in self._plugins.keys():
+            while len(self._plugins[plugin_type]):
+                plugin = self._plugins[plugin_type].pop()
+                exitfunc = getattr(plugin, "exit", None)
+                if exitfunc:
+                    exitfunc()
 
         self._bot.stop_bot()
         self.log("Bot stopped")
 
-    def add_admins(self, admins: list[int]|str) -> None:
+    def add_admins(self, admins: list[int] | str) -> None:
         """Set bot admins"""
         if not admins:
             return
@@ -150,17 +157,32 @@ class Engine:
     def set_message_reaction(self, chat_id, message_id: int, reaction: str) -> None:
         self._reply_queue.put(
             EngineTask(
-                "set_message_reaction", {
-                "chat_id": chat_id,
-                "message_id": message_id,
-                "reaction": (ReactionTypeEmoji(reaction),)
-            })
+                "set_message_reaction",
+                {
+                    "chat_id": chat_id,
+                    "message_id": message_id,
+                    "reaction": (ReactionTypeEmoji(reaction),),
+                },
+            )
         )
 
     def kick_chat_member(self, chat_id: int, user_id: int):
-        """Remove chat member from group without ban"""
+        """DEPRECATED. Remove chat member from group without ban"""
         self._reply_queue.put(
             EngineTask("kick_chat_member", {"chat_id": chat_id, "user_id": user_id})
+        )
+
+    def ban_chat_member(self, chat_id: int, user_id: int, revoke_messages: bool):
+        """Ban member from chat"""
+        self._reply_queue.put(
+            EngineTask(
+                "ban_chat_member",
+                {
+                    "chat_id": chat_id,
+                    "user_id": user_id,
+                    "revoke_messages": revoke_messages,
+                },
+            )
         )
 
     def ban_user(self, chat_id: int, user_id: int) -> None:
@@ -186,14 +208,17 @@ class Engine:
                     task.method_name, task.kwargs.get("chat_id", 0)
                 )
             except ApiException as exc:
+                self.metrics.inc_api_errors_total(exc.__class__.__name__)
                 self.log(
-                    f"Unhandled ApiException: {exc}\n{traceback.format_exc()}",
+                    f"Unhandled ApiException: {exc.function_name} -> {exc.result}:\n{exc}\n{traceback.format_exc()}",
                     severity="error",
                 )
 
             except Exception as exc:
+                self.metrics.inc_api_errors_total(exc.__class__.__name__)
                 self.log(
-                    f"Unhandled Exception: {exc}\n{traceback.format_exc()}", "error"
+                    f"Unhandled Exception: {exc}\n{traceback.format_exc()}",
+                    "error",
                 )
                 if task.tries <= task.max_tries:
                     task.tries += 1
@@ -223,18 +248,36 @@ class Engine:
             return
 
     def _chat_member_reactions(self, message: telebot.types.Message):
-        self.log(f"got reaction: {message}")
+        # self.log(f"got reaction: {message}")
         # self._storage.on_added_to_group(message.chat.id)
 
         # self._metrics.inc_members_joined_total(message.chat.id, message.from_user.id)
 
-        # if self._run_plugins(plugins.PLUGIN_NEW_CHAT_MEMBER, message):
-        #     return
+        if self._run_plugins(plugins.PLUGIN_NEW_CHAT_MESSAGE, message):
+            return
 
-    def _run_plugins(self, plugin_type: int, message: telebot.types.Message) -> bool:
+    def _run_plugins(
+        self,
+        plugin_type: int,
+        message: telebot.types.Message | telebot.types.MessageReactionUpdated,
+    ) -> bool:
         for plugin in self._plugins[plugin_type]:
             try:
-                if plugin.execute(self, message):
+                match message.__class__:
+                    case telebot.types.Message:
+                        handler_name = "execute"
+                    case telebot.types.MessageReactionUpdated:
+                        handler_name = "execute_reaction"
+
+                handler = getattr(plugin, handler_name, None)
+                if not handler:
+                    self.log(
+                        f"Plugin {plugin.__class__.__name__} does not have method {handler_name}",
+                        "warning",
+                    )
+                    continue
+
+                if handler(self, message):
                     return True
             except Exception as exc:
                 cls_name = plugin.__class__.__name__
@@ -261,9 +304,7 @@ class Engine:
 
         if not self.storage.is_user_confirmed(
             message.chat.id, message.from_user.id
-        ) and not self.storage.get_user_confirm_code(
-            message.chat.id, message.from_user.id
-        ):
+        ) and not self.storage.get_user_confirm_code(message.chat.id, message.from_user.id):
             # user added in group before bot
             return
         if not self.storage.is_user_confirmed(message.chat.id, message.from_user.id):
