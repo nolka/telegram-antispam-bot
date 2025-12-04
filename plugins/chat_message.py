@@ -146,7 +146,7 @@ class SpamDetectorPlugin(ChatMessagePlugin):
         engine.kick_chat_member(group_id, user_id)
         self._logger.info(f"User {user_id} was kicked from group {group_id} because spam detected")
         self._spam_filter.add_spam_phrase(spam_text)
-        engine.metrics.spam_message_added_total(group_id, user_id)
+        engine.metrics.inc_spam_message_added_total(group_id, user_id)
 
     def _delete_from_spam(self, engine: bot.Engine, message: telebot.types.Message) -> None:
         if not engine.is_user_admin(message.from_user.id):

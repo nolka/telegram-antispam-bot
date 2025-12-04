@@ -264,6 +264,7 @@ class Engine:
                     task.tries += 1
                     queue.put(task)
                 else:
+                    self.metrics.inc_tasks_dropped_total()
                     self.log("Task dropped because max retry limit exceeded")
 
             finally:
