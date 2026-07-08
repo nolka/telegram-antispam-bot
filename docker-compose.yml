@@ -1,33 +1,37 @@
 version: "3.3"
 
 services:
+  db:
+    image: postgres:17-alpine
+    restart: always
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-bot}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-password}
+      - POSTGRES_DB=${POSTGRES_DB:-botdb}
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+
   bot-app:
     image: $IMAGE_NAME:$IMAGE_VERSION
     restart: always
     build:
       context: .
+    depends_on:
+      - db
     environment:
       - TELEGRAM_BOT_USERNAME=$TELEGRAM_BOT_USERNAME
       - TELEGRAM_BOT_TOKEN=$TELEGRAM_BOT_TOKEN
       - PLUGIN_KICK_NOT_CONFIRMED_USER_AFTER=$PLUGIN_KICK_NOT_CONFIRMED_USER_AFTER
       - METRICS_PORT=$METRICS_PORT
       - METRICS_HOST=$METRICS_HOST
+      - POSTGRES_DSN=postgresql://${POSTGRES_USER:-bot}:${POSTGRES_PASSWORD:-password}@db:5432/${POSTGRES_DB:-botdb}
     ports:
       - $METRICS_MAP_HOST:$METRICS_PORT:$METRICS_PORT
     volumes:
       - ./storage:/app/storage
     working_dir: /app
 
-  # db:
-  #   image: postgres:17-alpine
-  #   restart: always
-  #   environment:
-  #     - POSTGRES_USER=$POSTGRES_USER
-  #     - POSTGRES_PASSWORD=$POSTGRES_PASSWORD
-  #     - POSTGRES_DB=$POSTGRES_DB
-  #   ports:
-  #     - "127.0.0.1:5432:5432"
-  #   volumes:
-  #     - db_data:/var/lib/postgresql/data
-# volumes:
-#   db_data:
+volumes:
+  db_data:

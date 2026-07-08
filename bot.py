@@ -16,7 +16,8 @@ from storage import AbstractStorage
 
 class QueueExit:
     """
-    Class used to exid from worker threads
+    Sentinel marker used to signal worker threads to exit.
+    Place an instance (QueueExit()) into the queue and check with isinstance().
     """
 
 
@@ -92,8 +93,8 @@ class Engine:
         Stops bot engine
         """
         self.log("Sending ExitQueue to worker threads...")
-        self._reply_queue.put(QueueExit)
-        self._updates_queue.put(QueueExit)
+        self._reply_queue.put(QueueExit())
+        self._updates_queue.put(QueueExit())
 
         # terminating threads
         self.log("Joining worker threads...")
@@ -207,14 +208,16 @@ class Engine:
         while True:
             try:
                 task = queue.get()
-                if task == QueueExit:
+                if isinstance(task, QueueExit):
                     return
 
                 message_type, message = task.__class__, task
                 match message_type:
                     case telebot.types.MessageReactionUpdated:
+                        self._ensure_group_exists(message.chat.id)
                         self.on_chat_member_reactions(message)
                     case telebot.types.Message:
+                        self._ensure_group_exists(message.chat.id)
                         match message.content_type:
                             case "text":
                                 self.on_chat_message(message)
@@ -235,7 +238,7 @@ class Engine:
         while True:
             try:
                 task: EngineTask = queue.get()
-                if task == QueueExit:
+                if isinstance(task, QueueExit):
                     return
 
                 exec_method = getattr(self._bot, task.method_name)
@@ -272,6 +275,10 @@ class Engine:
 
         self.log("Exiting from messages sender thread.")
 
+    def _ensure_group_exists(self, chat_id: int) -> None:
+        """Ensure the group is registered in storage. Idempotent."""
+        self._storage.on_added_to_group(chat_id)
+
     def log(self, msg: str, severity: str = "info") -> None:
         """Writes log message"""
         match severity:
@@ -281,19 +288,12 @@ class Engine:
                 self._logger.info(msg)
 
     def on_chat_member_joins(self, message: telebot.types.Message):
-        # Hotfix for handling messages from groups when storage does not have
-        # info about where bot is member. TODO Make pretty solution
-        self._storage.on_added_to_group(message.chat.id)
-
-        self._metrics.inc_members_joined_total(message.chat.id, message.from_user.id)
+        self._metrics.inc_members_joined_total(message.chat.id)
 
         if self._run_plugins(plugins.PLUGIN_NEW_CHAT_MEMBER, message):
             return
 
     def on_chat_member_reactions(self, message: telebot.types.Message):
-        # self.log(f"got reaction: {message}")
-        self._storage.on_added_to_group(message.chat.id)
-
         if self._run_plugins(plugins.PLUGIN_NEW_CHAT_MESSAGE, message):
             return
 
@@ -336,11 +336,7 @@ class Engine:
         self._storage.on_added_to_group(group_id)
 
     def on_chat_message(self, message):
-        # Hotfix for handling messages from groups when storage does not have
-        # info about where bot is member. TODO Make pretty solution
-        self._storage.on_added_to_group(message.chat.id)
-
-        self._metrics.inc_messages_received_total(message.chat.id, message.from_user.id)
+        self._metrics.inc_messages_received_total(message.chat.id)
 
         if self._run_plugins(plugins.PLUGIN_NEW_CHAT_MESSAGE, message):
             return

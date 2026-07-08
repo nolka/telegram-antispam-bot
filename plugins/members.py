@@ -2,6 +2,7 @@
 This module contains user-defined plugins which can be plugged into bot to handle events
 when new chat member joins to group
 """
+
 from collections import defaultdict
 from random import choice, seed, shuffle
 from threading import Timer
@@ -30,9 +31,7 @@ class CASBan(MemberPlugin):
 
     req_timeout = 3
 
-    def execute(
-        self, engine: bot.Engine, message: telebot.types.Message
-    ) -> None | bool:
+    def execute(self, engine: bot.Engine, message: telebot.types.Message) -> None | bool:
         for new_member in message.new_chat_members:
             self._logger.info(
                 f"Checking CAS ban for user {new_member.id} in group {message.chat.id}"
@@ -79,9 +78,7 @@ class AntispamVerification(MemberPlugin):
 
         self.engine.add_callback_query_handler(self._user_selected_answer, func=None)
 
-    def execute(
-        self, engine: bot.Engine, message: telebot.types.Message
-    ) -> None | bool:
+    def execute(self, engine: bot.Engine, message: telebot.types.Message) -> None | bool:
         for new_member in message.new_chat_members:
             if new_member.username == engine.bot_username:
                 engine.on_bot_added_to_group(message.chat.id)
@@ -96,14 +93,10 @@ class AntispamVerification(MemberPlugin):
                 continue
 
             confirm_text = None
-            confirm_code = engine.storage.get_user_confirm_code(
-                message.chat.id, new_member.id
-            )
+            confirm_code = engine.storage.get_user_confirm_code(message.chat.id, new_member.id)
             if confirm_code is None or not confirm_code:
                 confirm_code = self._generate_confirm_code()
-                engine.storage.set_user_confirm_code(
-                    message.chat.id, new_member.id, confirm_code
-                )
+                engine.storage.set_user_confirm_code(message.chat.id, new_member.id, confirm_code)
             if not confirm_text:
                 confirm_text = self.emojies[confirm_code]
 
@@ -135,14 +128,9 @@ class AntispamVerification(MemberPlugin):
     def _get_emoji_keyboard(self) -> telebot.types.InlineKeyboardMarkup:
         variants = list(self.emojies)
         shuffle(variants)
-        return telebot.types.InlineKeyboardMarkup(
-            [
-                [
-                    telebot.types.InlineKeyboardButton(x, callback_data=f"verify_{x}")
-                    for x in variants
-                ]
-            ]
-        )
+        return telebot.types.InlineKeyboardMarkup([
+            [telebot.types.InlineKeyboardButton(x, callback_data=f"verify_{x}") for x in variants]
+        ])
 
     def _user_selected_answer(self, callback: telebot.types.CallbackQuery) -> None:
         chat_id = callback.message.chat.id
@@ -182,9 +170,7 @@ class AntispamVerification(MemberPlugin):
             return
 
         engine.kick_chat_member(group_id, user_id)
-        self._logger.info(
-            f"User {user_id} was kicked from group {group_id} because not confirmed"
-        )
+        self._logger.info(f"User {user_id} was kicked from group {group_id} because not confirmed")
         engine.delete_message(group_id, captha_msg_id)
         self._cleanup_user_timers(group_id, user_id)
 
@@ -202,7 +188,5 @@ class AntispamVerification(MemberPlugin):
 class RemoveMemberJoinedMessage(MemberPlugin):
     """Performs removing message about new member joined"""
 
-    def execute(
-        self, engine: bot.Engine, message: telebot.types.Message
-    ) -> None | bool:
+    def execute(self, engine: bot.Engine, message: telebot.types.Message) -> None | bool:
         engine.delete_message(message.chat.id, message.id)

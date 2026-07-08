@@ -22,25 +22,53 @@ class ChatMessagePlugin(AbstractPlugin):
 
 class MessageLoggerPlugin(ChatMessagePlugin):
     """
-    Test plugin for messages, just print information in lo about message has ben received
+    Logs all received messages to the database and prints basic info to console.
     """
 
     def execute(self, engine: bot.Engine, message: telebot.types.Message) -> None | bool:
-        print(message.__class__)
         msg_data = {
             "user_name": message.from_user.full_name,
             "user_id": message.from_user.id,
             "chat_id": message.chat.id,
             "chat_title": message.chat.title,
             "type": message.chat.type,
+            "content_type": message.content_type,
         }
 
         if message.text:
-            msg_data["text"] = message.text
+            msg_data["text"] = message.text[:500]  # Limit text length for logs
 
         self._logger.info(
             f"Received message: {'\n'.join([f'  {k}: {v}' for k, v in msg_data.items()])}"
         )
+
+        # Подсчитываем количество ранее отправленных сообщений пользователем
+        message_count = engine.storage.get_user_message_count(message.chat.id, message.from_user.id)
+        self.log(
+            f"User {message.from_user.id} -> {message.from_user.full_name} has sent {message_count} "
+            f"message(s) previously in group {message.chat.id}"
+        )
+
+        # Сохраняем в БД
+        try:
+            engine.storage.save_message(
+                group_id=message.chat.id,
+                user_id=message.from_user.id,
+                msg_id=message.id,
+                msg_type=message.content_type or "unknown",
+                text=message.text,
+                params={
+                    "chat_title": message.chat.title,
+                    "chat_type": message.chat.type,
+                    "chat_description": getattr(message.chat, "description", None),
+                    "user_name": message.from_user.full_name,
+                    "first_name": message.from_user.first_name,
+                    "last_name": message.from_user.last_name,
+                    "username": message.from_user.username,
+                },
+            )
+        except Exception as e:
+            self._logger.error(f"Failed to save message to DB: {e}")
 
     def execute_reaction(
         self, engine: bot.Engine, message: telebot.types.MessageReactionUpdated
@@ -68,6 +96,8 @@ class SpamDetectorPlugin(ChatMessagePlugin):
         self._logger.info("Spamfilter loaded")
         self._spam_msg_map = SpamMessageCollection()
 
+        self.log(f"filter started with threshold {self._instant_ban_predict_value}")
+
     def execute(self, engine: bot.Engine, message: telebot.types.Message) -> None | bool:
         if message.text.startswith(("+", "-", "!")):
             self._handle_command(engine, message)
@@ -77,7 +107,7 @@ class SpamDetectorPlugin(ChatMessagePlugin):
         self._logger.info(f"check result: {check_result}")
         if check_result.is_spam:
             engine.set_message_reaction(message.chat.id, message.id, REACTION_POSSIBLE_SPAM)
-            engine.metrics.inc_spam_message_detected_total(message.chat.id, message.from_user.id)
+            engine.metrics.inc_spam_message_detected_total(message.chat.id)
             self._logger.warning(
                 f"spam (possibility: {check_result.possibility}) detected from user: {message.from_user.id}({message.from_user.first_name}): {message.text}"
             )
@@ -146,7 +176,7 @@ class SpamDetectorPlugin(ChatMessagePlugin):
         engine.kick_chat_member(group_id, user_id)
         self._logger.info(f"User {user_id} was kicked from group {group_id} because spam detected")
         self._spam_filter.add_spam_phrase(spam_text)
-        engine.metrics.inc_spam_message_added_total(group_id, user_id)
+        engine.metrics.inc_spam_message_added_total(group_id)
 
     def _delete_from_spam(self, engine: bot.Engine, message: telebot.types.Message) -> None:
         if not engine.is_user_admin(message.from_user.id):

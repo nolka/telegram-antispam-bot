@@ -26,7 +26,7 @@ class TestFileSystem(unittest.TestCase):
     def test_constructor_with_groups_list(self):
         with create_file_system(("1",), write_groups_file=False) as fs:
             dirs_to_be_created = [
-                os.path.sep.join([fs.storage_dir,  "1"]),
+                os.path.sep.join([fs.storage_dir, "1"]),
                 os.path.sep.join([fs.storage_dir, "1", "confirm_codes"]),
                 os.path.sep.join([fs.storage_dir, "1", "confirmed"]),
             ]
@@ -41,7 +41,6 @@ class TestFileSystem(unittest.TestCase):
 
     def test_constructor_with_groups_list_txt(self):
         with create_file_system(("1",)) as fs:
-
             self.assertTrue(os.path.exists(fs.storage_dir + os.path.sep + "groups.txt"))
 
             dirs_to_be_created = [
@@ -83,18 +82,26 @@ class TestFileSystem(unittest.TestCase):
 
     def test_set_user_confirm_code(self):
         with create_file_system(("1",)) as fs:
-            self.assertFalse(os.path.exists(os.path.sep.join([fs.storage_dir, "1", "confirm_codes", "1"])))
+            self.assertFalse(
+                os.path.exists(os.path.sep.join([fs.storage_dir, "1", "confirm_codes", "1"]))
+            )
             self.assertIsNone(fs.set_user_confirm_code(1, 1, "❤️"))
-            self.assertTrue(os.path.exists(os.path.sep.join([fs.storage_dir, "1", "confirm_codes", "1"])))
+            self.assertTrue(
+                os.path.exists(os.path.sep.join([fs.storage_dir, "1", "confirm_codes", "1"]))
+            )
 
-            with codecs.open(os.path.sep.join([fs.storage_dir, "1", "confirm_codes", "1"]), "r", encoding="utf-8") as f:
+            with codecs.open(
+                os.path.sep.join([fs.storage_dir, "1", "confirm_codes", "1"]), "r", encoding="utf-8"
+            ) as f:
                 self.assertEqual("❤️", f.read())
 
     def test_get_user_confirm_code(self):
         with create_file_system(("1",)) as fs:
             self.assertIsNone(fs.get_user_confirm_code(1, 1))
 
-            with codecs.open(os.path.sep.join([fs.storage_dir, "1", "confirm_codes", "1"]), "w", encoding="utf-8") as f:
+            with codecs.open(
+                os.path.sep.join([fs.storage_dir, "1", "confirm_codes", "1"]), "w", encoding="utf-8"
+            ) as f:
                 f.write("❤️")
 
             self.assertEqual("❤️", fs.get_user_confirm_code(1, 1))
@@ -138,3 +145,32 @@ class TestFileSystem(unittest.TestCase):
                 groups = [int(x) for x in f.readlines()]
                 self.assertIn(1, groups)
                 self.assertIn(2, groups)
+
+    def test_get_user_message_count_no_messages(self):
+        with create_file_system(("1",)) as fs:
+            self.assertEqual(0, fs.get_user_message_count(1, 1))
+
+    def test_get_user_message_count_single_message(self):
+        with create_file_system(("1",)) as fs:
+            fs.save_message(group_id=1, user_id=1, msg_id=100, msg_type="text", text="hello")
+            self.assertEqual(1, fs.get_user_message_count(1, 1))
+
+    def test_get_user_message_count_multiple_messages(self):
+        with create_file_system(("1",)) as fs:
+            for i in range(5):
+                fs.save_message(group_id=1, user_id=1, msg_id=100 + i, msg_type="text", text="msg")
+            self.assertEqual(5, fs.get_user_message_count(1, 1))
+
+    def test_get_user_message_count_different_user(self):
+        with create_file_system(("1",)) as fs:
+            fs.save_message(group_id=1, user_id=1, msg_id=100, msg_type="text", text="user1")
+            fs.save_message(group_id=1, user_id=2, msg_id=101, msg_type="text", text="user2")
+            self.assertEqual(1, fs.get_user_message_count(1, 1))
+            self.assertEqual(1, fs.get_user_message_count(1, 2))
+
+    def test_get_user_message_count_different_group(self):
+        with create_file_system(("1", "2")) as fs:
+            fs.save_message(group_id=1, user_id=1, msg_id=100, msg_type="text", text="g1")
+            fs.save_message(group_id=2, user_id=1, msg_id=101, msg_type="text", text="g2")
+            self.assertEqual(1, fs.get_user_message_count(1, 1))
+            self.assertEqual(1, fs.get_user_message_count(2, 1))
