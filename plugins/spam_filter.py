@@ -1,4 +1,5 @@
 import hashlib
+import os
 import re
 import string
 from collections import defaultdict
@@ -154,14 +155,7 @@ class SpamFilter:
         )
 
         self._logger.info("Processing messages...")
-        processed_messages = []
-
-        with Pool(self._worker_pool_size) as pool:
-            result = pool.map(RussianTextPreprocessor().preprocess_text, messages)
-            for i, msg in enumerate(result):
-                processed_messages.append(msg)
-                if i % 1000 == 0:
-                    self._logger.info(f"Received processed: {i}/{len(messages)}")
+        processed_messages = self._process_messages(messages)
 
         # Разделение данных на обучающую и тестовую выборки
         X_train, X_test, y_train, y_test = train_test_split(
@@ -195,6 +189,31 @@ class SpamFilter:
         self._logger.info(confusion_matrix(y_test, y_pred))
 
         self.is_trained = True
+
+    def _get_worker_count(self) -> int:
+        """Return number of worker processes for text processing.
+
+        Single-core systems use sequential processing (0 workers).
+        Multi-core systems use cpu_count - 1 workers to leave one core
+        for the main bot process.
+        """
+        cpu_count = os.cpu_count() or 1
+        if cpu_count <= 1:
+            return 0
+        return cpu_count - 1
+
+    def _process_messages(self, messages: list[str]) -> list[str]:
+        """Process messages either sequentially or in parallel depending on CPU count."""
+        worker_count = self._get_worker_count()
+
+        if worker_count < 2:
+            self._logger.info("Using sequential processing")
+            return [self._preprocessor.preprocess_text(msg) for msg in messages]
+
+        self._logger.info(f"Using parallel processing with {worker_count} workers")
+        with Pool(worker_count) as pool:
+            results = pool.map(RussianTextPreprocessor().preprocess_text, messages)
+        return list(results)
 
     def save(self) -> None:
         self._logger.info("Saving messages...")
