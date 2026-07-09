@@ -50,10 +50,11 @@ class TestDatabaseStorage:
         db_storage.save_normal_messages(["normal1", "normal2"])
         assert db_storage.get_normal_messages() == ["normal1", "normal2"]
 
-    def test_set_user_confirmed_removes_confirm_code(self, db_storage: DatabaseStorage):
+    def test_set_user_confirmed_preserves_confirm_code(self, db_storage: DatabaseStorage):
         db_storage.set_user_confirm_code(1, 1, "❤️")
         db_storage.set_user_confirmed(1, 1)
-        assert db_storage.get_user_confirm_code(1, 1) is None
+        # Confirm code is preserved as verification history
+        assert db_storage.get_user_confirm_code(1, 1) == "❤️"
 
     # --- get_user_message_count tests ---
 

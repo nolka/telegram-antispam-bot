@@ -289,16 +289,6 @@ class DatabaseStorage(AbstractStorage):
 
     def set_user_confirmed(self, group_id: int, user_id: int) -> bool:
         with self._get_session() as session:
-            # Remove any pending confirm code
-            code = session.execute(
-                select(ConfirmCode).where(
-                    ConfirmCode.group_id == group_id,
-                    ConfirmCode.user_id == user_id,
-                )
-            ).scalar_one_or_none()
-            if code:
-                session.delete(code)
-
             # Upsert confirmed user
             existing = session.execute(
                 select(ConfirmedUser).where(
